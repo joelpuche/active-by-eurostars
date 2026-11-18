@@ -36,7 +36,7 @@
   /* ---------- Estado ---------- */
   var booted = false;
   var state = emptyState();
-  var ui = { city: 'all', kind: 'all', commCity: 'all', commTab: 'meetups', form: null, authTab: 'register', showPw: false, authBusy: false, authErr: '', chatBusy: false, prefsDraft: null, collabKind: 'sponsor', collabSent: false, ambSent: false, wall: null };
+  var ui = { city: 'all', kind: 'all', commCity: 'all', commTab: 'meetups', form: null, authTab: 'register', showPw: false, authBusy: false, authErr: '', chatBusy: false, prefsDraft: null, collabKind: 'sponsor', collabSent: false, ambSent: false, wall: null, sportF: 'all', tourId: 'run', memMonth: null, wrapIdx: 0 };
   var chat = [];
 
   function emptyState() { return { user: null, prefs: { goals: [], sports: [] }, stamps: [], bookings: [], joined: [] }; }
@@ -105,7 +105,8 @@
   function nextFriday() { var d = new Date(); var add = (5 - d.getDay() + 7) % 7 || 7; d.setDate(d.getDate() + add); return d.toISOString().slice(0, 10); }
   function firstFriday(ym) { var d = new Date(ym + '-01T12:00:00'); d.setDate(1 + ((5 - d.getDay() + 7) % 7)); return d.toISOString().slice(0, 10); }
   function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-  function stampSport(a) { return a.kind === 'race' ? 'event' : a.sport; }
+  function stampSport(a) { return a.sport; }
+  function stampLabel(id) { var a = act(id); return a && a.stampName ? a.stampName : null; }
   function sportLabel(s) { var x = byId(D.sports, s); return s === 'event' ? t('filter_event') : x ? L(x.label) : t('sport_run'); }
   function initials(n) { return ((n || '?').trim().split(/\s+/).filter(function (p) { return /^[\p{L}\d]/u.test(p); }).map(function (p) { return p[0]; }).join('') || '?').slice(0, 2).toUpperCase(); }
   function code() { var c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = 'AE-'; for (var i = 0; i < 5; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
@@ -148,7 +149,7 @@
   function score(a) {
     var s = 0, p = state.prefs || {}, have = {};
     state.stamps.forEach(function (x) { have[x.city] = 1; });
-    (p.goals || []).forEach(function (g) { var go = byId(D.goals, g); if (go && go.kinds.indexOf(a.kind) >= 0) s += 3; if (g === 'wellness' && a.sport === 'gym') s += 3; });
+    (p.goals || []).forEach(function (g) { var go = byId(D.goals, g); if (go && go.kinds.indexOf(a.kind) >= 0) s += 3; if (g === 'discover' && ['surf', 'golf', 'sup', 'trail', 'cycling', 'yoga', 'swim', 'tennis'].indexOf(a.sport) >= 0) s += 2; });
     if ((p.sports || []).indexOf(a.sport) >= 0) s += 2;
     if (!have[a.city]) s += 1;
     if (city(a.city).pilot) s += 0.5;
@@ -216,7 +217,14 @@
     gift: '<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13"/><path d="M12 8c-2-3-6-3-6-.5S9.5 8 12 8zM12 8c2-3 6-3 6-.5S14.5 8 12 8z"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
     download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 18v2h16v-2"/>',
-    chat: '<path d="M4 5h16v11H9l-5 4z"/>', eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+    golf: '<path d="M7 21V3l9 4-9 4"/><path d="M4 21h10"/>',
+    sup: '<path d="M4 17c3 1.5 13 1.5 16 0"/><path d="M14 3l-3 11M10 4l3 1"/><circle cx="8" cy="7" r="1.5"/>',
+    camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+    sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+    share: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
+    filter: '<path d="M4 5h16l-6 8v6l-4-2v-4z"/>', eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     handshake: '<path d="M3 11l4-4 4 2 3-2 7 4-6 6-3-2-3 2z"/><path d="M8 14l2 2M11 13l2 2"/>',
     crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>', trophy: '<path d="M8 4h8v5a4 4 0 01-8 0zM5 5H3v2a3 3 0 003 3M19 5h2v2a3 3 0 01-3 3M12 13v4M8 21h8M9 17h6"/>'
   };
@@ -258,7 +266,7 @@
   function stampSvg(cityId, sport, date, opts) {
     opts = opts || {};
     var c = city(cityId), id = 'sp' + (stampSeq++), rot = opts.flat ? 0 : (hash(cityId + sport) % 24) - 12;
-    var name = L(c.name).toUpperCase(), year = date ? date.slice(0, 4) : '2026';
+    var name = (opts.label || L(c.name)).toUpperCase(), year = date ? date.slice(0, 4) : '2026';
     return '<svg class="stamp ' + (opts.cls || '') + '" viewBox="0 0 120 120" style="transform:rotate(' + rot + 'deg)">' +
       '<defs><path id="' + id + 't" d="M20 60a40 40 0 0180 0"/><path id="' + id + 'b" d="M16 60a44 44 0 0088 0"/></defs>' +
       '<g fill="none" stroke="currentColor"><circle cx="60" cy="60" r="56" stroke-width="3"/><circle cx="60" cy="60" r="50" stroke-width="1.2"/><circle cx="60" cy="60" r="27" stroke-width="1.2"/></g>' +
@@ -277,7 +285,7 @@
   }
   function go(path) { if (location.hash === '#/' + path) render(); else location.hash = '#/' + path; }
 
-  var DARK = { welcome: 1, trips: 1, trip: 1, passport: 1, confirmed: 1, prefs: 1, tour: 1 };
+  var DARK = { welcome: 1, trips: 1, trip: 1, passport: 1, confirmed: 1, prefs: 1, tour: 1, wrapped: 1 };
   var PUBLIC = { welcome: 1, collab: 1 };
   var TABS = [
     { id: 'explore', icon: 'compass', label: 'tab_explore' },
@@ -295,11 +303,12 @@
     if (BEFORE_LEAVE) { BEFORE_LEAVE(); BEFORE_LEAVE = null; }
     if (!state.user && !PUBLIC[r.name]) { location.replace('#/welcome'); return; }
     if (state.user && (r.name === '' || r.name === 'welcome')) { location.replace('#/explore'); return; }
-    var views = { welcome: vWelcome, prefs: vPrefs, explore: vExplore, activity: vActivity, book: vBook, confirmed: vConfirmed, trips: vTrips, trip: vTrip, passport: vPassport, community: vCommunity, profile: vProfile, stella: vStella, wall: vWall, tour: vTour, ambassador: vAmbassador, collab: vCollab };
+    var views = { welcome: vWelcome, prefs: vPrefs, explore: vExplore, activity: vActivity, book: vBook, confirmed: vConfirmed, trips: vTrips, trip: vTrip, passport: vPassport, community: vCommunity, profile: vProfile, stella: vStella, wall: vWall, tour: vTour, ambassador: vAmbassador, collab: vCollab, memories: vMemories, wrapped: vWrapped };
     var fn = views[r.name] || vExplore;
     var dark = !!DARK[r.name];
     document.body.classList.toggle('dark', dark);
     document.body.classList.toggle('chat-mode', r.name === 'stella' || r.name === 'wall');
+    document.body.classList.toggle('story-mode', r.name === 'wrapped');
     var meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.setAttribute('content', dark ? '#591225' : '#FFFFFF');
     stampSeq = 0;
     view.innerHTML = fn(r.arg);
@@ -339,7 +348,7 @@
     return '<header class="subbar' + (dark ? ' dark' : '') + '"><button class="icon-btn plain" data-action="' + (back ? 'go' : 'back') + '"' + (back ? ' data-href="' + back + '"' : '') + ' aria-label="' + t('back') + '">' + icon('back') + '</button><h2>' + esc(title) + '</h2><span class="sm-brand">' + isotype('iso-xs') + '</span></header>';
   }
   function logoImg(p) { return '<img src="' + p.logo + '" alt="' + esc(p.name) + '"' + (p.mono ? ' class="mono"' : '') + ' loading="lazy">'; }
-  function kindTag(a) { var k = D.kinds[a.kind]; return '<span class="tag kind-' + a.kind + '">' + icon(k.icon) + k.name + '</span>'; }
+  function kindTag(a) { var k = D.kinds[a.kind]; return '<span class="tag kind-' + a.kind + '">' + icon(k.icon) + k.name + '</span>' + (a.role ? '<span class="tag tag-role">' + t('role_' + a.role) + '</span>' : ''); }
   function marquee() {
     var items = D.partners.map(function (p) { return '<button class="mq-item" data-action="partner" data-id="' + p.id + '" aria-label="' + esc(p.name) + '">' + logoImg(p) + '</button>'; }).join('');
     return '<div class="marquee" aria-label="' + t('partners_title') + '"><div class="mq-track">' + items + items + '</div></div>';
@@ -416,7 +425,7 @@
       (c.pilot ? '<span class="tag tag-pilot">' + t('pilot') + '</span>' : '') + (a.exclusive ? '<span class="tag tag-excl">' + icon('crown') + t('exclusive') + '</span>' : '') + '</div>' +
       '<div class="act-body"><h3>' + esc(L(a.title)) + '</h3>' +
       '<p class="muted">' + icon('pin') + esc(L(c.name)) + ' · ' + esc(a.partner) + '</p>' +
-      '<div class="act-meta"><span>' + sportIcon(a.sport) + esc(L(a.when)) + '</span><span class="price' + (priceFor(a).unlocked ? ' unlocked' : '') + '">' + priceLabel(a, true) + '</span></div>' +
+      '<div class="act-meta"><span>' + sportIcon(a.sport) + esc(sportLabel(a.sport)) + ' · ' + esc(L(a.when)) + '</span><span class="price' + (priceFor(a).unlocked ? ' unlocked' : '') + '">' + priceLabel(a, true) + '</span></div>' +
       (a.invite ? '' : '<div class="spots"><i style="width:' + Math.round(a.taken / a.spots * 100) + '%"></i></div><small class="muted">' + left + ' ' + t('spots_left') + '</small>') +
       '</div></button>';
   }
@@ -432,43 +441,58 @@
   }
 
   function vExplore() {
+    var filtering = ui.city !== 'all' || ui.kind !== 'all' || ui.sportF !== 'all';
     var list = D.activities.filter(function (a) {
       if (ui.city !== 'all' && a.city !== ui.city) return false;
       if (ui.kind !== 'all' && a.kind !== ui.kind) return false;
+      if (ui.sportF !== 'all' && a.sport !== ui.sportF) return false;
       return true;
     });
     list.sort(function (a, b) { return score(b) - score(a); });
-    var c = ui.city !== 'all' ? city(ui.city) : null;
     var noPrefs = !state.prefs || !(state.prefs.goals || []).length;
+    var pills = [];
+    if (ui.sportF !== 'all') pills.push(['sportF', sportIcon(ui.sportF) + esc(sportLabel(ui.sportF))]);
+    if (ui.kind !== 'all') pills.push(['kind', icon(D.kinds[ui.kind].icon) + D.kinds[ui.kind].name]);
+    if (ui.city !== 'all') pills.push(['city', icon('pin') + esc(L(city(ui.city).name))]);
+    var sportsWithActs = D.sports.filter(function (sp) { return D.activities.some(function (a) { return a.sport === sp.id; }); });
     return topbar() +
       '<section class="pad">' +
         '<p class="hello">' + t('hello') + ', ' + esc(state.user.name) + '</p>' +
         '<h1 class="display dark-ink">' + t('explore_title') + '</h1>' +
         nextBookingCard() +
       '</section>' +
-      '<section><div class="sec-head pad"><h3 class="h-sec">' + t('for_you') + '</h3>' + (noPrefs ? '<button class="link-btn" data-action="go" data-href="prefs">' + t('prefs_set') + '</button>' : '<button class="link-btn" data-action="go" data-href="prefs">' + t('edit') + '</button>') + '</div>' +
-        '<div class="fy-row">' + recommended(5).map(forYouCard).join('') + '</div></section>' +
-      '<section class="pad"><h3 class="h-sec">' + t('three_ways') + '</h3>' +
-        '<div class="kinds">' + ['local', 'race', 'tour'].map(function (k) {
-          var K = D.kinds[k];
-          return '<button class="kind-card kc-' + k + '" data-action="' + (k === 'tour' ? 'go' : 'kind') + '" data-href="tour" data-v="' + k + '">' +
-            '<div class="kc-top">' + icon(K.icon) + '<b>' + K.name + '</b><span>' + esc(L(K.tag)) + '</span></div>' +
-            '<p>' + esc(L(K.what)) + '</p><small>' + icon('user') + esc(L(K.who)) + '</small></button>'; }).join('') + '</div></section>' +
-      '<section class="pad"><h3 class="h-sec">' + t('partners_title') + '</h3></section>' + marquee() +
-      '<section class="pad" id="list-anchor"><h3 class="h-sec">' + t('activities') + '</h3>' +
+      '<section><div class="sec-head pad"><h3 class="h-sec">' + t('what_fancy') + '</h3></div>' +
+        '<div class="sport-tiles">' + sportsWithActs.map(function (sp) {
+          var n = D.activities.filter(function (a) { return a.sport === sp.id; }).length;
+          return '<button class="stile' + (ui.sportF === sp.id ? ' on' : '') + '" data-action="sport-f" data-v="' + sp.id + '" style="background-image:url(' + sp.img + ')"><i>' + sportIcon(sp.id) + '</i><b>' + esc(L(sp.label)) + '</b><small>' + n + '</small></button>'; }).join('') + '</div></section>' +
+      (filtering ? '' :
+        '<section><div class="sec-head pad"><h3 class="h-sec">' + t('for_you') + '</h3><button class="link-btn" data-action="go" data-href="prefs">' + (noPrefs ? t('prefs_set') : t('edit')) + '</button></div>' +
+          '<div class="fy-row">' + recommended(6).map(forYouCard).join('') + '</div></section>' +
+        '<section><div class="sec-head pad"><h3 class="h-sec">' + t('three_ways') + '</h3></div>' +
+          '<div class="kind-row">' + ['local', 'race', 'tour'].map(function (k) {
+            var K = D.kinds[k], n = D.activities.filter(function (a) { return a.kind === k && !a.invite; }).length;
+            return '<button class="kind-big kb2-' + k + '" data-action="' + (k === 'tour' ? 'go' : 'kind') + '" data-href="tour" data-v="' + k + '" style="background-image:url(' + K.img + ')">' +
+              '<span class="kb-ic">' + icon(K.icon) + '</span><div><small>' + esc(L(K.tag)) + '</small><b>' + K.name + '</b><p>' + esc(L(K.short)) + '</p><em>' + (k === 'tour' ? t('tour_3') : n + ' ' + t('options')) + icon('chev') + '</em></div></button>'; }).join('') + '</div></section>' +
+        '<section><div class="sec-head pad"><h3 class="h-sec">' + t('destinations') + '</h3></div>' +
+          '<div class="city-row">' + D.cities.map(function (c) {
+            var n = D.activities.filter(function (a) { return a.city === c.id; }).length;
+            return '<button class="city-card" data-action="city" data-v="' + c.id + '" style="background-image:url(' + c.img + ')">' + (c.pilot ? '<span class="tag tag-pilot">' + t('pilot') + '</span>' : '') +
+              '<div><b>' + esc(L(c.name)) + '</b><small>' + esc(c.hotel) + '</small><em>' + n + ' ' + t('options') + '</em></div></button>'; }).join('') + '</div></section>' +
+        '<section class="pad"><h3 class="h-sec">' + t('partners_title') + '</h3></section>' + marquee()) +
+      '<section class="pad" id="list-anchor">' +
+        '<div class="list-head"><h3 class="h-sec">' + (filtering ? t('results') : t('all_activities')) + ' <span class="count">' + list.length + '</span></h3>' +
+          (filtering ? '<button class="link-btn" data-action="clear-f">' + t('clear_filters') + '</button>' : '') + '</div>' +
+        (pills.length ? '<div class="pills">' + pills.map(function (p) { return '<button class="pill-f" data-action="unf" data-v="' + p[0] + '">' + p[1] + icon('x') + '</button>'; }).join('') + '</div>' : '') +
         '<div class="seg seg-full seg-light seg-scroll">' + ['all', 'local', 'race', 'tour'].map(function (k) {
-          return '<button class="' + (ui.kind === k ? 'on' : '') + '" data-action="kind" data-v="' + k + '">' + (k === 'all' ? t('filter_all') : D.kinds[k].name) + '</button>'; }).join('') + '</div></section>' +
+          return '<button class="' + (ui.kind === k ? 'on' : '') + '" data-action="kind" data-v="' + k + '">' + (k === 'all' ? t('filter_all') : D.kinds[k].name) + '</button>'; }).join('') + '</div>' +
+        (ui.kind !== 'all' ? '<p class="kind-note">' + icon('user') + esc(L(D.kinds[ui.kind].who)) + '</p>' : '') +
+      '</section>' +
       '<div class="chips">' +
         '<button class="chip' + (ui.city === 'all' ? ' on' : '') + '" data-action="city" data-v="all">' + icon('globe') + t('all') + '</button>' +
         D.cities.map(function (x) { return '<button class="chip' + (ui.city === x.id ? ' on' : '') + '" data-action="city" data-v="' + x.id + '">' + esc(L(x.name)) + (x.pilot ? '<i class="dot"></i>' : '') + '</button>'; }).join('') +
       '</div>' +
-      (c ? '<section class="pad"><div class="city-hero" style="background-image:url(' + c.img + ')"><div>' +
-        (c.pilot ? '<span class="tag tag-pilot">' + t('pilot') + '</span>' : '') +
-        '<h2>' + esc(L(c.name)) + '</h2><p>' + icon('bed') + esc(c.hotel) + ' ' + '★'.repeat(c.stars) + '</p>' +
-        '<p class="small">' + t('from_night') + ' <b>' + money(c.price) + '</b> / ' + t('night') + '</p></div></div></section>' : '') +
       '<section class="pad">' +
-        (ui.kind !== 'all' ? '<p class="kind-note">' + icon('user') + esc(L(D.kinds[ui.kind].who)) + '</p>' : '') +
-        '<div class="act-list">' + (list.length ? list.map(activityCard).join('') : '<p class="empty">' + t('no_results') + '</p>') + '</div>' +
+        '<div class="act-list">' + (list.length ? list.map(activityCard).join('') : '<div class="empty-box">' + icon('compass') + '<p>' + t('no_results') + '</p><button class="btn btn-ghost btn-sm" data-action="clear-f">' + t('clear_filters') + '</button></div>') + '</div>' +
         collabCta() +
       '</section>';
   }
@@ -493,13 +517,13 @@
         '<div class="price-box' + (pr.unlocked ? ' unlocked' : '') + '"><div><small>' + t('your_price') + '</small><b>' + priceLabel(a) + '</b>' +
           (pr.unlocked ? '<s>' + money(pr.base) + '</s>' : '') + '</div>' +
           (a.exclusive ? '<p>' + icon('crown') + t('exclusive_note') + '</p>' : '') +
-          (a.bibNote ? '<p>' + icon('info') + t('bib_note') + '</p>' : '') + '</div>' +
+          (a.bibNote ? '<p>' + icon('info') + t('bib_note') + '</p>' : '') + (a.ticketNote ? '<p>' + icon('info') + t('ticket_note') + '</p>' : '') + '</div>' +
         (p ? '<button class="partner-strip" data-action="partner" data-id="' + p.id + '">' + logoImg(p) + '<span>' + esc(L(p.tagline)) + '</span>' + icon('chev') + '</button>' : '') +
         '<p class="body-text">' + esc(L(a.desc)) + '</p>' +
-        (a.kind === 'race' ? '<h3 class="h-sec">' + t('race_plan') + '</h3><ul class="upsell-list">' + D.upsells.map(function (u) { var up = priceFor(u); return '<li>' + icon('check') + '<span>' + esc(L(u.title)) + '</span><b>' + (up.amount ? money(up.amount) : (up.unlocked ? t('free_for_level', { level: level().name }) : t('included'))) + '</b></li>'; }).join('') + '</ul><p class="direct-only">' + icon('shield') + t('direct_only') + '</p>' : '') +
+        (a.ups ? '<h3 class="h-sec">' + t('race_plan') + '</h3><ul class="upsell-list">' + upsellsFor(a).map(function (u) { var up = priceFor(u); return '<li>' + icon('check') + '<span>' + esc(L(u.title)) + '</span><b>' + (up.amount ? money(up.amount) : (up.unlocked ? t('free_for_level', { level: level().name }) : t('included'))) + '</b></li>'; }).join('') + '</ul><p class="direct-only">' + icon('shield') + t('direct_only') + '</p>' : '') +
         '<div class="card"><div class="row-ic">' + icon('pin') + '<div><small class="muted">' + t('meeting_point') + '</small><b>' + esc(L(a.meet)) + '</b></div></div></div>' +
         '<div id="social-preview" class="social"><h3 class="h-sec">' + t('who_goes') + '</h3><p class="muted small">' + t('loading') + '</p></div>' +
-        '<div class="stamp-preview">' + stampSvg(a.city, stampSport(a), null, { cls: 'stamp-ink' }) + '<div><small class="muted">' + t('stamp_preview') + '</small><b>' + t('stamp_of') + ' ' + esc(L(c.name)) + '</b><span class="muted">Sport Passport</span></div></div>' +
+        '<div class="stamp-preview">' + stampSvg(a.city, stampSport(a), null, { cls: 'stamp-ink', label: a.stampName }) + '<div><small class="muted">' + t('stamp_preview') + '</small><b>' + t('stamp_of') + ' ' + esc(L(c.name)) + '</b><span class="muted">Sport Passport</span></div></div>' +
       '</div>' +
       '<div class="sticky-cta"><div><small class="muted">' + t('from_night') + '</small><b>' + money(c.price) + '</b><small class="muted"> / ' + t('night') + ' + ' + priceLabel(a, true).toLowerCase() + '</small></div>' +
         (a.invite ? '<button class="btn btn-primary" disabled>' + t('invite_only') + '</button>' : '<button class="btn btn-primary" data-action="go" data-href="book/' + a.id + '">' + t('book_cta') + '</button>') + '</div>' +
@@ -585,6 +609,7 @@
 
   /* ---------- Reserva con fotos de habitación y extras ---------- */
   var ROOMS = { classic: 1, superior: 1.2, suite: 1.6 };
+  function upsellsFor(a) { return a.ups ? D.upsells.filter(function (u) { return u.sets.indexOf(a.ups) >= 0; }) : []; }
   function quote(a, f) {
     var c = city(a.city), night = Math.round(c.price * ROOMS[f.room]);
     var stay = night * f.nights, ap = priceFor(a).amount, activity = ap * f.guests;
@@ -595,7 +620,7 @@
   function vBook(id) {
     var a = act(id); if (!a || a.invite) return vExplore();
     var c = city(a.city);
-    if (!ui.form || ui.form.activity !== id) ui.form = { activity: id, checkIn: a.month ? firstFriday(a.month) : nextFriday(), nights: 2, guests: 1, room: 'superior', upsells: a.kind === 'race' ? ['shakeout', 'breakfast'] : [], photo: 0 };
+    if (!ui.form || ui.form.activity !== id) ui.form = { activity: id, checkIn: a.month ? firstFriday(a.month) : nextFriday(), nights: 2, guests: 1, room: 'superior', upsells: a.ups ? D.upsellDefaults[a.ups].slice() : [], photo: 0 };
     var f = ui.form, q = quote(a, f), photos = c.rooms[f.room];
     return subbar(t('booking')) +
       '<section class="book">' +
@@ -610,7 +635,7 @@
         '<label class="field light"><span>' + icon('cal') + t('check_in') + '</span><input type="date" id="f-checkin" value="' + f.checkIn + '" min="' + new Date().toISOString().slice(0, 10) + '"></label>' +
         '<div class="steppers">' + stepper('nights', t('n_nights'), f.nights, 1, 7) + stepper('guests', t('guests'), f.guests, 1, 4) + '</div>' +
         '<div class="card incl"><div class="row-ic">' + sportIcon(a.sport) + '<div><small class="muted">' + t('activity_spot') + '</small><b>' + esc(L(a.title)) + '</b><span class="muted small">' + priceLabel(a) + '</span></div></div><span class="ok">' + icon('check') + '</span></div>' +
-        (a.kind === 'race' ? '<h3 class="h-sec">' + t('race_extras') + '</h3><p class="muted small">' + t('race_extras_sub') + '</p><div class="upsells">' + D.upsells.map(function (u) {
+        (a.ups ? '<h3 class="h-sec">' + t('race_extras') + '</h3><p class="muted small">' + t('race_extras_sub') + '</p><div class="upsells">' + upsellsFor(a).map(function (u) {
           var on = f.upsells.indexOf(u.id) >= 0, up = priceFor(u);
           return '<button class="upsell' + (on ? ' on' : '') + '" data-action="upsell" data-v="' + u.id + '"><i>' + icon('check') + '</i><span>' + esc(L(u.title)) + '</span><b>' + (up.amount ? '+' + money(up.amount) : (up.unlocked ? t('free_for_level', { level: level().name }) : t('included'))) + '</b></button>'; }).join('') + '</div>' : '') +
         '<h3 class="h-sec">' + t('summary') + '</h3>' +
@@ -686,12 +711,13 @@
           ((b.upsells || []).length ? '<div class="wide"><small>' + t('race_extras') + '</small><b>' + b.upsells.map(function (u) { return esc(L(byId(D.upsells, u).title)); }).join(' · ') + '</b></div>' : '') +
         '</div>' +
         '<div class="perf"></div>' +
-        '<div class="pass-qr">' + (done ? '<div class="qr-done">' + stampSvg(b.city, stampSport(a), actDate, { cls: 'stamp-ink' }) + '</div>' : qrSvg(b.id)) +
+        '<div class="pass-qr">' + (done ? '<div class="qr-done">' + stampSvg(b.city, stampSport(a), actDate, { cls: 'stamp-ink', label: a.stampName }) + '</div>' : qrSvg(b.id)) +
           '<div class="pass-code"><small>' + t('code') + '</small><b class="mono">' + b.id + '</b></div></div>' +
       '</article>' +
       '<div class="pass-actions"><button class="btn btn-outline-light" data-action="pdf" data-id="' + b.id + '">' + icon('eye') + t('pdf_short') + '</button>' +
         '<button class="btn btn-outline-light" data-action="go" data-href="wall/' + a.id + '">' + icon('chat') + t('meet_short') + '</button></div>' +
-      (done ? '<div class="done-banner">' + icon('check') + '<div><b>' + t('validated') + '</b><span>' + t('stamp_won') + ' · ' + esc(L(c.name)) + '</span></div></div>' + suggestNext(b.city) :
+      (done ? '<div class="done-banner">' + icon('check') + '<div><b>' + t('validated') + '</b><span>' + t('stamp_won') + ' · ' + esc(L(c.name)) + '</span></div></div>' +
+        (stampOf(b) && stampOf(b).photo ? '<button class="btn btn-light btn-block mt12" data-action="go" data-href="memories">' + icon('image') + t('see_memory') + '</button>' : '<button class="btn btn-light btn-block mt12" data-action="photo" data-id="' + b.id + '">' + icon('camera') + t('photo_add') + '</button>') + suggestNext(b.city) :
         '<ol class="steps">' +
           '<li class="' + (b.checkedIn ? 'ok' : 'cur') + '"><i>' + (b.checkedIn ? icon('check') : '1') + '</i><div><b>' + t('step1') + '</b><p>' + t('step1_desc') + '</p>' +
             (b.checkedIn ? '<span class="pill">' + t('checked_in') + '</span>' : '<button class="btn btn-light btn-sm" data-action="checkin" data-id="' + b.id + '">' + t('do_checkin') + '</button>') + '</div></li>' +
@@ -734,7 +760,7 @@
       '<button class="tour-strip" data-action="go" data-href="tour">' + icon('trophy') + '<div><b>ACTIVE Tour ' + D.tour.season + '</b><span>' + t('tour_strip') + '</span></div>' + icon('chev') + '</button>' +
       '<h3 class="h-sec">' + t('my_stamps') + '</h3>' +
       '<div class="pp-page"><div class="stamp-grid">' +
-        state.stamps.map(function (s) { return '<div class="slot' + (s.fresh ? ' fresh' : '') + '">' + stampSvg(s.city, s.sport, s.date, { cls: 'stamp-ink' }) + '<small>' + fmtDate(s.date, { day: 'numeric', month: 'short', year: '2-digit' }) + '</small></div>'; }).join('') +
+        state.stamps.map(function (s) { return '<div class="slot' + (s.fresh ? ' fresh' : '') + '">' + stampSvg(s.city, s.sport, s.date, { cls: 'stamp-ink', label: stampLabel(s.activity) }) + '<small>' + fmtDate(s.date, { day: 'numeric', month: 'short', year: '2-digit' }) + '</small></div>'; }).join('') +
         missing.map(function (c) { return '<div class="slot empty"><div class="ghost"><span>' + esc(L(c.name)) + '</span></div><small>' + t('pending_stamp') + '</small></div>'; }).join('') +
       '</div></div>' +
       '<h3 class="h-sec">' + t('levels_perks') + '</h3>' +
@@ -742,6 +768,8 @@
         var un = i <= li;
         return '<div class="lv' + (un ? ' un' : '') + (i === li ? ' cur' : '') + '"><div class="lv-head"><b>' + x.name + '</b><span>' + esc(L(x.req)) + '</span>' + (un ? '<i class="lv-ok">' + icon('check') + '</i>' : '<i class="lv-lock">' + icon('lock') + '</i>') + '</div>' +
           '<ul>' + L(x.perks).map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>' +
+      '<div class="mem-strips"><button class="tour-strip" data-action="go" data-href="memories">' + icon('cal') + '<div><b>' + t('memories_title') + '</b><span>' + t('memories_strip') + '</span></div>' + icon('chev') + '</button>' +
+      '<button class="tour-strip wrap-strip" data-action="wrapped">' + icon('sparkle') + '<div><b>ACTIVE Wrapped ' + new Date().getFullYear() + '</b><span>' + t('wrapped_strip') + '</span></div>' + icon('chev') + '</button></div>' +
       '<button class="amb-strip" data-action="go" data-href="ambassador">' + icon('crown') + '<div><b>' + t('amb_title') + '</b><span>' + t('amb_strip') + '</span></div>' + icon('chev') + '</button>' +
       '<div class="st-note">' + icon('star') + '<div><b>' + t('st_title') + '</b><p>' + t('st_desc') + '</p></div></div>' +
       '</section>';
@@ -749,26 +777,31 @@
 
   /* ---------- ACTIVE Tour ---------- */
   function vTour() {
-    var stops = D.activities.filter(function (a) { return a.kind === 'tour'; });
-    var done = state.stamps.filter(function (s) { return /^tour-/.test(s.activity || ''); }).map(function (s) { return s.activity; });
-    var booked = state.bookings.filter(function (b) { return /^tour-/.test(b.activity); }).map(function (b) { return b.activity; });
-    var qual = stops.filter(function (s) { return !s.final; });
+    var tr = byId(D.tours, ui.tourId) || D.tours[0];
+    var stops = D.activities.filter(function (a) { return a.tour === tr.id; });
+    var done = state.stamps.filter(function (s) { return stops.some(function (x) { return x.id === s.activity; }); }).map(function (s) { return s.activity; });
+    var booked = state.bookings.filter(function (b) { return stops.some(function (x) { return x.id === b.activity; }); }).map(function (b) { return b.activity; });
+    var qual = stops.filter(function (x) { return !x.final; });
     var pts = done.length * D.tour.points.stop;
-    var rank = D.tour.ranking.concat([{ name: state.user.name + ' (' + t('you') + ')', city: '', pts: pts, me: true }]).sort(function (a, b) { return b.pts - a.pts; });
+    var rank = tr.ranking.concat([{ name: state.user.name + ' (' + t('you') + ')', city: '', pts: pts, me: true }]).sort(function (a, b) { return b.pts - a.pts; });
+    var next = qual.filter(function (x) { return done.indexOf(x.id) < 0; })[0] || stops[0];
     return subbar('ACTIVE Tour', null, true) +
       '<section class="pad tour">' +
-        '<div class="tour-hero">' + isotype('pp-iso') + '<small>' + t('tour_season', { y: D.tour.season }) + '</small><h1 class="display">ACTIVE Tour</h1><p>' + esc(L(D.kinds.tour.what)) + '</p>' +
+        '<p class="tour-intro">' + esc(L(D.kinds.tour.what)) + '</p>' +
+        '<div class="tour-tabs">' + D.tours.map(function (x) {
+          return '<button class="tt' + (x.id === tr.id ? ' on' : '') + '" data-action="tour-tab" data-v="' + x.id + '" style="background-image:url(' + x.img + ')">' + sportIcon(x.sport) + '<b>' + esc(x.name.replace('ACTIVE Tour ', '')) + '</b></button>'; }).join('') + '</div>' +
+        '<div class="tour-hero" style="background-image:linear-gradient(180deg, rgba(61,11,24,.55), rgba(61,11,24,.96)), url(' + tr.img + ')"><small>' + t('tour_season', { y: D.tour.season }) + '</small><h1 class="display">' + esc(tr.name) + '</h1><p>' + esc(L(tr.format)) + '</p>' +
           '<div class="tour-prog"><div><b>' + done.length + '/' + qual.length + '</b><span>' + t('tour_stops_done') + '</span></div><div><b>' + pts + '</b><span>' + t('points') + '</span></div><div><b>#' + (rank.findIndex(function (r) { return r.me; }) + 1) + '</b><span>' + t('ranking') + '</span></div></div></div>' +
-        '<p class="inspired">' + icon('info') + t('tour_inspired') + '</p>' +
+        '<p class="inspired">' + icon('info') + t('tour_separate') + '</p>' +
         '<h3 class="h-sec">' + t('tour_calendar') + '</h3>' +
-        '<ol class="tour-stops">' + stops.map(function (s) {
-          var st = done.indexOf(s.id) >= 0 ? 'done' : booked.indexOf(s.id) >= 0 ? 'booked' : s.final ? 'final' : 'open';
-          return '<li class="ts-' + st + '"><i>' + (st === 'done' ? icon('check') : s.final ? icon('trophy') : s.stop) + '</i><button data-action="go" data-href="activity/' + s.id + '"><b>' + esc(L(city(s.city).name)) + (s.final ? ' · Master Final' : '') + '</b><span>' + esc(L(s.when)) + ' · ' + esc(L(s.distance)) + '</span>' +
-            '<em>' + (st === 'done' ? t('ts_done') : st === 'booked' ? t('ts_booked') : s.final ? t('invite_only') : priceLabel(s, true)) + '</em></button></li>'; }).join('') + '</ol>' +
+        '<ol class="tour-stops">' + stops.map(function (x) {
+          var st = done.indexOf(x.id) >= 0 ? 'done' : booked.indexOf(x.id) >= 0 ? 'booked' : x.final ? 'final' : 'open';
+          return '<li class="ts-' + st + '"><i>' + (st === 'done' ? icon('check') : x.final ? icon('trophy') : x.stop) + '</i><button data-action="go" data-href="activity/' + x.id + '"><b>' + esc(L(city(x.city).name)) + (x.final ? ' · Master Final' : '') + '</b><span>' + esc(L(x.when)) + '</span>' +
+            '<em>' + (st === 'done' ? t('ts_done') : st === 'booked' ? t('ts_booked') : x.final ? t('invite_only') : priceLabel(x, true)) + '</em></button></li>'; }).join('') + '</ol>' +
         '<h3 class="h-sec">' + t('tour_rewards') + '</h3><ul class="checks light">' + L(D.tour.rewards).map(function (r) { return '<li>' + icon('trophy') + esc(r) + '</li>'; }).join('') + '</ul>' +
-        '<h3 class="h-sec">' + t('ranking') + '</h3><div class="rank">' + rank.map(function (r, i) {
+        '<h3 class="h-sec">' + t('ranking') + ' · ' + esc(tr.name.replace('ACTIVE Tour ', '')) + '</h3><div class="rank">' + rank.map(function (r, i) {
           return '<div class="rk' + (r.me ? ' me' : '') + (i < 3 ? ' top' : '') + '"><span>' + (i + 1) + '</span><b>' + esc(r.name) + '</b><small>' + esc(r.city) + '</small><em>' + r.pts + ' pts</em></div>'; }).join('') + '</div>' +
-        '<button class="btn btn-light btn-block" data-action="go" data-href="activity/' + (stops.filter(function (s) { return !s.final && done.indexOf(s.id) < 0; })[0] || stops[0]).id + '">' + t('tour_join') + '</button>' +
+        '<button class="btn btn-light btn-block" data-action="go" data-href="activity/' + next.id + '">' + t('tour_join') + '</button>' +
       '</section>';
   }
 
@@ -818,6 +851,191 @@
     var row = { kind: kind, name: fields.name, company: fields.company || null, contact: fields.contact, city: fields.city || null, message: fields.message, user_id: state.user ? state.user.id : null };
     var r = await sb.from('collab_requests').insert(row);
     return !r.error;
+  }
+
+
+  /* ---------- Recuerdos: foto con marca de agua, calendario y Wrapped ---------- */
+  function stampOf(b) { return state.stamps.filter(function (s) { return s.activity === b.activity && s.date === addDays(b.checkIn, 1); })[0]; }
+  var photoUrls = {};
+  async function signPhotos(paths) {
+    paths = paths.filter(function (p) { return p && !photoUrls[p]; });
+    if (!paths.length) return;
+    var r = await sb.storage.from('memories').createSignedUrls(paths, 3600);
+    (r.data || []).forEach(function (x) { if (x.signedUrl) photoUrls[x.path] = x.signedUrl; });
+  }
+  function svgToImage(svgText) {
+    return new Promise(function (res, rej) {
+      var img = new Image(); img.onload = function () { res(img); }; img.onerror = rej;
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+    });
+  }
+  function fileToImage(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () { res(img); }; img.onerror = rej; img.src = url;
+    });
+  }
+  function wrapLines(ctx, text, maxW) {
+    var words = text.split(' '), lines = [], cur = '';
+    words.forEach(function (w) { var tst = cur ? cur + ' ' + w : w; if (ctx.measureText(tst).width > maxW && cur) { lines.push(cur); cur = w; } else cur = tst; });
+    if (cur) lines.push(cur); return lines;
+  }
+  async function composeMemory(file, s) {
+    var a = act(s.activity) || {}, c = city(s.city), W = 1080, H = 1350;
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var ctx = cv.getContext('2d');
+    var img = await fileToImage(file);
+    var sc = Math.max(W / img.width, H / img.height), w = img.width * sc, h = img.height * sc;
+    ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+    var g = ctx.createLinearGradient(0, H * 0.45, 0, H); g.addColorStop(0, 'rgba(61,11,24,0)'); g.addColorStop(1, 'rgba(61,11,24,.92)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    var g2 = ctx.createLinearGradient(0, 0, 0, 260); g2.addColorStop(0, 'rgba(0,0,0,.35)'); g2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g2; ctx.fillRect(0, 0, W, 260);
+    // Sello de la ciudad (marca de agua)
+    var svg = stampSvg(s.city, s.sport, s.date, { flat: true, label: a.stampName }).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" color="#ffffff" ');
+    try {
+      var st = await svgToImage(svg);
+      ctx.save(); ctx.globalAlpha = 0.95; ctx.translate(W - 210, 210); ctx.rotate(-0.17); ctx.drawImage(st, -160, -160, 320, 320); ctx.restore();
+    } catch (e) { console.warn('stamp', e); }
+    // Logo ACTIVE by Eurostars
+    ctx.save(); ctx.translate(56, H - 190); ctx.scale(1.05, 1.05); ctx.fillStyle = '#fff'; ctx.fill(new Path2D(LOGO_PATH), 'evenodd'); ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 64px Oswald, "Arial Narrow", sans-serif'; ctx.fillText('ACTIVE', 176, H - 118);
+    ctx.font = '600 24px Oswald, "Arial Narrow", sans-serif'; ctx.fillText('B Y   E U R O S T A R S', 178, H - 82);
+    // Texto de la actividad
+    ctx.font = '700 54px Oswald, "Arial Narrow", sans-serif';
+    var lines = wrapLines(ctx, (L(a.title) || '').toUpperCase(), W - 112).slice(0, 2);
+    var y0 = H - 300 - (lines.length - 1) * 60;
+    lines.forEach(function (l, i) { ctx.fillText(l, 56, y0 + i * 60); });
+    ctx.font = '500 30px Inter, -apple-system, sans-serif'; ctx.globalAlpha = .9;
+    ctx.fillText(L(c.name) + '  ·  ' + fmtDate(s.date, { day: 'numeric', month: 'long', year: 'numeric' }), 58, H - 236);
+    ctx.globalAlpha = 1;
+    ctx.font = '600 22px Inter, -apple-system, sans-serif'; ctx.textAlign = 'right'; ctx.globalAlpha = .8;
+    ctx.fillText('TRAVEL FURTHER. PLAY TOGETHER.', W - 56, H - 86); ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+    return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/jpeg', 0.86); });
+  }
+  var photoTarget = null;
+  function pickPhoto(bookingId, up) {
+    photoTarget = { id: bookingId, up: up };
+    var inp = document.getElementById('photo-input');
+    if (!inp) { inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'photo-input'; inp.hidden = true; document.body.appendChild(inp); }
+    inp.value = ''; inp.click();
+  }
+  async function handlePhoto(file) {
+    if (!file || !photoTarget) return;
+    var b = booking(photoTarget.id), s = b && stampOf(b); if (!s) return;
+    var up = photoTarget.up;
+    showOverlay('<div class="spinner"></div><p>' + t('photo_making') + '</p>', 'ov-plain');
+    try {
+      await (document.fonts ? document.fonts.ready : Promise.resolve());
+      var blob = await composeMemory(file, s);
+      var path = state.user.id + '/' + s.activity + '-' + s.date + '.jpg';
+      var r = await sb.storage.from('memories').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (r.error) throw r.error;
+      s.photo = path; save(); delete photoUrls[path];
+      var url = URL.createObjectURL(blob);
+      memoryShare = { blob: blob, name: 'ACTIVE-' + s.city + '-' + s.date + '.jpg' };
+      showOverlay('<img class="mem-result" src="' + url + '" alt=""><small class="eyebrow">' + t('photo_saved') + '</small>' +
+        '<div class="two mt12"><button class="btn btn-ghost" data-action="mem-share">' + icon('share') + t('share') + '</button><button class="btn btn-primary" data-action="' + (up ? 'after-stamp' : 'go-memories') + '" data-up="' + (up || '') + '">' + (up ? t('great') : t('memories_title')) + '</button></div>', 'ov-plain ov-mem');
+    } catch (e) { console.warn(e); hideOverlay(); toast(t('photo_error')); }
+  }
+  var memoryShare = null;
+  async function shareBlob(blob, name) {
+    var file = new File([blob], name, { type: blob.type });
+    if ('ontouchstart' in window && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'ACTIVE by Eurostars' }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  function vMemories() {
+    var stamps = state.stamps.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var months = {}; stamps.forEach(function (s) { months[s.date.slice(0, 7)] = 1; });
+    var keys = Object.keys(months).sort();
+    if (!ui.memMonth) ui.memMonth = keys.length ? keys[keys.length - 1] : new Date().toISOString().slice(0, 7);
+    var ym = ui.memMonth, first = new Date(ym + '-01T12:00:00'), days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    var offset = (first.getDay() + 6) % 7, monthStamps = stamps.filter(function (s) { return s.date.slice(0, 7) === ym; });
+    var byDay = {}; monthStamps.forEach(function (s) { (byDay[+s.date.slice(8, 10)] = byDay[+s.date.slice(8, 10)] || []).push(s); });
+    var dows = lang === 'en' ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    var cells = '';
+    for (var i = 0; i < offset; i++) cells += '<div class="cd empty"></div>';
+    for (var d = 1; d <= days; d++) {
+      var ss = byDay[d];
+      if (ss) { var s0 = ss[0], a0 = act(s0.activity) || {}; cells += '<button class="cd has" data-action="mem-open" data-v="' + esc(s0.activity + '|' + s0.date) + '" data-photo="' + esc(s0.photo || '') + '" style="background-image:url(' + (a0.img || '') + ')"><span>' + d + '</span>' + (s0.photo ? '<i>' + icon('camera') + '</i>' : '') + '</button>'; }
+      else cells += '<div class="cd"><span>' + d + '</span></div>';
+    }
+    var idx = keys.indexOf(ym);
+    return subbar(t('memories_title')) +
+      '<section class="pad mem">' +
+        '<p class="muted">' + t('memories_sub') + '</p>' +
+        '<div class="cal-head"><button class="icon-btn small" data-action="mem-month" data-v="-1">' + icon('back') + '</button><b>' + first.toLocaleDateString(lang === 'en' ? 'en-GB' : 'es-ES', { month: 'long', year: 'numeric' }) + '</b><button class="icon-btn small" data-action="mem-month" data-v="1">' + icon('chev') + '</button></div>' +
+        '<div class="cal">' + dows.map(function (x) { return '<div class="dow">' + x + '</div>'; }).join('') + cells + '</div>' +
+        (keys.length ? '<div class="mem-jump">' + keys.map(function (k) { return '<button class="chip' + (k === ym ? ' on' : '') + '" data-action="mem-goto" data-v="' + k + '">' + new Date(k + '-01T12:00:00').toLocaleDateString(lang === 'en' ? 'en-GB' : 'es-ES', { month: 'short', year: '2-digit' }) + '</button>'; }).join('') + '</div>' : '') +
+        '<div class="mem-list">' + (monthStamps.length ? monthStamps.map(function (s) {
+          var a = act(s.activity) || {}, bk = state.bookings.filter(function (b) { return b.activity === s.activity && addDays(b.checkIn, 1) === s.date; })[0];
+          return '<article class="mem-card"><div class="mem-img" data-photo="' + esc(s.photo || '') + '" style="background-image:url(' + (a.img || '') + ')">' + (s.photo ? '' : '<span class="mem-nophoto">' + icon('image') + t('no_photo') + '</span>') +
+            '<div class="mem-stamp">' + stampSvg(s.city, s.sport, s.date, { cls: 'stamp-white', label: a.stampName }) + '</div></div>' +
+            '<div class="mem-body"><b>' + esc(L(a.title) || s.activity) + '</b><span>' + esc(L(city(s.city).name)) + ' · ' + fmtDate(s.date, { weekday: 'long', day: 'numeric', month: 'long' }) + '</span>' +
+            '<div class="mem-actions">' + (s.photo ? '<button class="btn btn-ghost btn-sm" data-action="mem-share-path" data-v="' + esc(s.photo) + '">' + icon('share') + t('share') + '</button>' : (bk ? '<button class="btn btn-primary btn-sm" data-action="photo" data-id="' + bk.id + '">' + icon('camera') + t('photo_add') + '</button>' : '')) + '</div></div></article>'; }).join('')
+          : '<div class="empty-box">' + icon('cal') + '<p>' + t('memories_empty') + '</p></div>') + '</div>' +
+        '<button class="wrap-cta" data-action="wrapped">' + icon('sparkle') + '<div><b>ACTIVE Wrapped ' + ym.slice(0, 4) + '</b><span>' + t('wrapped_cta') + '</span></div>' + icon('chev') + '</button>' +
+      '</section>';
+  }
+  AFTER.memories = async function () {
+    var els = [].slice.call(document.querySelectorAll('[data-photo]')).filter(function (e) { return e.getAttribute('data-photo'); });
+    await signPhotos(els.map(function (e) { return e.getAttribute('data-photo'); }));
+    els.forEach(function (e) { var u = photoUrls[e.getAttribute('data-photo')]; if (u) e.style.backgroundImage = 'url(' + u + ')'; });
+  };
+
+  function wrappedData(year) {
+    var ss = state.stamps.filter(function (s) { return s.date.slice(0, 4) === String(year); });
+    function top(key) { var m = {}; ss.forEach(function (s) { var k = key(s); m[k] = (m[k] || 0) + 1; }); var best = null; Object.keys(m).forEach(function (k) { if (!best || m[k] > m[best]) best = k; }); return best ? { k: best, n: m[best] } : null; }
+    var cities = {}, sports = {}; ss.forEach(function (s) { cities[s.city] = 1; sports[s.sport] = 1; });
+    return { year: year, stamps: ss, count: ss.length, cities: Object.keys(cities).length, sports: Object.keys(sports).length,
+      topSport: top(function (s) { return s.sport; }), topCity: top(function (s) { return s.city; }), topMonth: top(function (s) { return s.date.slice(0, 7); }),
+      photos: ss.filter(function (s) { return s.photo; }) };
+  }
+  function vWrapped() {
+    var w = wrappedData(ui.wrapYear || new Date().getFullYear()), i = ui.wrapIdx;
+    var slides = [];
+    slides.push('<div class="sl sl-intro">' + isotype('wr-iso') + '<small>ACTIVE Wrapped</small><h1 class="display">' + t('wr_intro', { y: w.year }) + '</h1><p>' + t('wr_intro_sub', { name: esc(state.user.name) }) + '</p></div>');
+    if (!w.count) slides.push('<div class="sl"><h2 class="display">' + t('wr_empty') + '</h2></div>');
+    else {
+      slides.push('<div class="sl"><small>' + t('wr_numbers') + '</small><div class="wr-big"><b>' + w.count + '</b><span>' + t('activities_done') + '</span></div><div class="wr-row"><div><b>' + w.cities + '</b><span>' + t('cities_done') + '</span></div><div><b>' + w.sports + '</b><span>' + t('wr_sports') + '</span></div><div><b>' + w.count + '</b><span>' + t('stamps') + '</span></div></div></div>');
+      var sp = byId(D.sports, w.topSport.k) || {};
+      slides.push('<div class="sl sl-img" style="background-image:url(' + (sp.img || '') + ')"><small>' + t('wr_top_sport') + '</small><div class="wr-ic">' + sportIcon(w.topSport.k) + '</div><h2 class="display">' + esc(sportLabel(w.topSport.k)) + '</h2><p>' + t('wr_times', { n: w.topSport.n }) + '</p></div>');
+      var tc = city(w.topCity.k);
+      slides.push('<div class="sl sl-img" style="background-image:url(' + tc.img + ')"><small>' + t('wr_top_city') + '</small><h2 class="display wr-city">' + esc(L(tc.name)) + '</h2><p>' + esc(tc.hotel) + ' · ' + t('wr_times', { n: w.topCity.n }) + '</p></div>');
+      slides.push('<div class="sl"><small>' + t('wr_top_month') + '</small><h2 class="display">' + new Date(w.topMonth.k + '-01T12:00:00').toLocaleDateString(lang === 'en' ? 'en-GB' : 'es-ES', { month: 'long' }) + '</h2><p>' + t('wr_month_sub', { n: w.topMonth.n }) + '</p></div>');
+      slides.push('<div class="sl"><small>' + t('wr_moments') + '</small><div class="wr-grid">' + w.stamps.slice(-6).map(function (s) { var a = act(s.activity) || {}; return '<div data-photo="' + esc(s.photo || '') + '" style="background-image:url(' + (a.img || '') + ')"></div>'; }).join('') + '</div><p>' + (w.photos.length ? t('wr_photos', { n: w.photos.length }) : t('wr_no_photos')) + '</p></div>');
+      slides.push('<div class="sl sl-end"><small>' + t('wr_level') + '</small><h2 class="display">' + level().name + '</h2><div class="wr-stamps">' + w.stamps.slice(-4).map(function (s) { return stampSvg(s.city, s.sport, s.date, { cls: 'stamp-white', label: stampLabel(s.activity) }); }).join('') + '</div><p class="eyebrow">Travel further. Play together.</p>' +
+        '<button class="btn btn-light" data-action="wr-share">' + icon('share') + t('wr_share') + '</button></div>');
+    }
+    if (i >= slides.length) i = ui.wrapIdx = slides.length - 1;
+    return '<section class="story">' +
+      '<div class="story-bars">' + slides.map(function (_, k) { return '<i class="' + (k < i ? 'done' : k === i ? 'cur' : '') + '"></i>'; }).join('') + '</div>' +
+      '<button class="story-close icon-btn plain" data-action="go" data-href="passport" aria-label="' + t('close') + '">' + icon('x') + '</button>' +
+      slides[i] +
+      '<button class="story-nav prev" data-action="wr-nav" data-v="-1" aria-label="prev"></button><button class="story-nav next" data-action="wr-nav" data-v="1" aria-label="next"></button>' +
+      '</section>';
+  }
+  AFTER.wrapped = AFTER.memories;
+  async function shareWrapped() {
+    var w = wrappedData(ui.wrapYear || new Date().getFullYear()), W = 1080, H = 1920;
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var ctx = cv.getContext('2d');
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#591225'); g.addColorStop(1, '#3D0B18'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalAlpha = .08; ctx.translate(380, 300); ctx.scale(9, 9); ctx.fillStyle = '#fff'; ctx.fill(new Path2D(LOGO_PATH), 'evenodd'); ctx.restore();
+    ctx.save(); ctx.translate(80, 110); ctx.scale(1.3, 1.3); ctx.fillStyle = '#fff'; ctx.fill(new Path2D(LOGO_PATH), 'evenodd'); ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.font = '700 70px Oswald, sans-serif'; ctx.fillText('ACTIVE', 230, 200); ctx.font = '600 28px Oswald, sans-serif'; ctx.fillText('B Y   E U R O S T A R S', 232, 240);
+    ctx.font = '700 120px Oswald, sans-serif'; ctx.fillText('WRAPPED ' + w.year, 80, 520);
+    ctx.font = '500 44px Inter, sans-serif'; ctx.globalAlpha = .85; ctx.fillText(state.user.name + ' · ' + level().name, 84, 600); ctx.globalAlpha = 1;
+    var rows = [[w.count, t('activities_done')], [w.cities, t('cities_done')], [w.sports, t('wr_sports')]];
+    rows.forEach(function (r, k) { ctx.font = '700 200px Oswald, sans-serif'; ctx.fillText(String(r[0]), 80, 900 + k * 260); ctx.font = '600 44px Inter, sans-serif'; ctx.fillText(String(r[1]).toUpperCase(), 330, 860 + k * 260); });
+    if (w.topSport) { ctx.font = '600 44px Inter, sans-serif'; ctx.fillText(t('wr_top_sport') + ': ' + sportLabel(w.topSport.k), 84, 1700); }
+    if (w.topCity) ctx.fillText(t('wr_top_city') + ': ' + L(city(w.topCity.k).name), 84, 1770);
+    ctx.font = '600 32px Inter, sans-serif'; ctx.globalAlpha = .8; ctx.fillText('TRAVEL FURTHER. PLAY TOGETHER.', 84, 1860);
+    cv.toBlob(function (b) { shareBlob(b, 'ACTIVE-Wrapped-' + w.year + '.jpg'); }, 'image/jpeg', 0.9);
   }
 
   /* ---------- Comunidad + Partners ---------- */
@@ -899,6 +1117,8 @@
           '<button class="li li-btn" data-action="go" data-href="ambassador"><span>' + icon('crown') + t('amb_title') + '</span>' + icon('chev') + '</button>' +
           '<button class="li li-btn" data-action="go" data-href="collab"><span>' + icon('handshake') + t('collab_title') + '</span>' + icon('chev') + '</button>' +
           '<button class="li li-btn" data-action="go" data-href="tour"><span>' + icon('trophy') + 'ACTIVE Tour ' + D.tour.season + '</span>' + icon('chev') + '</button>' +
+          '<button class="li li-btn" data-action="go" data-href="memories"><span>' + icon('cal') + t('memories_title') + '</span>' + icon('chev') + '</button>' +
+          '<button class="li li-btn" data-action="wrapped"><span>' + icon('sparkle') + 'ACTIVE Wrapped</span>' + icon('chev') + '</button>' +
           '<div class="li"><span>' + icon('globe') + t('language') + '</span>' + langSwitch() + '</div>' +
           '<div class="li"><span>' + icon('phone') + t('install_tip') + '</span></div>' +
         '</div>' +
@@ -1128,9 +1348,10 @@
       state.stamps.push({ city: b.city, sport: sport, activity: a.id, date: date, fresh: true });
       b.status = 'completed'; save(); haptic();
       var after = levelIndex();
-      showOverlay('<div class="stamp-drop">' + stampSvg(b.city, sport, date, { cls: 'stamp-white', flat: true }) + '</div>' +
+      showOverlay('<div class="stamp-drop">' + stampSvg(b.city, sport, date, { cls: 'stamp-white', flat: true, label: a.stampName }) + '</div>' +
         '<small class="eyebrow">' + t('stamp_won') + '</small><h2 class="display">' + esc(L(c.name)) + '</h2><p>' + esc(L(a.title)) + '</p>' +
-        '<button class="btn btn-light btn-block" data-action="after-stamp" data-up="' + (after > before ? after : '') + '" data-id="' + b.id + '">' + t('great') + '</button>', 'ov-dark');
+        '<button class="btn btn-light btn-block" data-action="photo" data-id="' + b.id + '" data-up="' + (after > before ? after : '') + '">' + icon('camera') + t('photo_add') + '</button>' +
+        '<button class="btn btn-outline-light btn-block mt8" data-action="after-stamp" data-up="' + (after > before ? after : '') + '" data-id="' + b.id + '">' + t('great') + '</button>', 'ov-dark');
     }, 1700);
   }
   function showLevelUp(i) {
@@ -1234,7 +1455,7 @@
       perks.slice(0, 4).forEach(function (p, i) { var cx = i % 2 ? W / 2 + 2 : M, cy = y + Math.floor(i / 2) * 6; doc.setFillColor.apply(doc, BUR); doc.circle(cx + 1.2, cy - 1.2, 0.9, 'F'); txt(doc.splitTextToSize(p, 85)[0], cx + 4, cy); });
       y += 14;
     }
-    if (a.kind === 'race' && y < 262) { font('normal', 8.5, MUT); txt(doc.splitTextToSize(t('direct_only') + '. ' + t('bib_note'), W - 2 * M), M, y); }
+    if (a.ups && y < 262) { font('normal', 8.5, MUT); txt(doc.splitTextToSize(t('direct_only') + '. ' + (a.ticketNote ? t('ticket_note') : t('bib_note')), W - 2 * M), M, y); }
 
     doc.setFillColor.apply(doc, CLA); doc.rect(0, 272, W, 25, 'F');
     doc.addImage(logoW, 'PNG', M - 1, 276.5, 13, 13, 'logoW', 'FAST');
@@ -1294,8 +1515,8 @@
       case 'pref-sport': toggleIn(ui.prefsDraft.sports, v); rerenderKeepScroll(); break;
       case 'prefs-save': state.prefs = ui.prefsDraft; ui.prefsDraft = null; save(); toast(t('prefs_saved')); go('explore'); break;
       case 'prefs-skip': ui.prefsDraft = null; go('explore'); break;
-      case 'city': ui.city = v; render(); break;
-      case 'kind': ui.kind = v; var y0 = document.getElementById('list-anchor'); var top = y0 ? y0.getBoundingClientRect().top + window.scrollY - 8 : 0; render(); window.scrollTo(0, top); break;
+      case 'city': ui.city = v; jumpToList(); break;
+      case 'kind': ui.kind = v; jumpToList(); break;
       case 'ccity': ui.commCity = v; render(); break;
       case 'ctab': ui.commTab = v; render(); break;
       case 'partner': ui.commTab = 'partners'; ui.focusPartner = el.getAttribute('data-id'); go('community'); break;
@@ -1327,6 +1548,20 @@
       case 'pdf': previewPdf(el.getAttribute('data-id')); break;
       case 'pdf-save': savePdf(); break;
       case 'pdf-close': hideOverlay(); break;
+      case 'sport-f': ui.sportF = ui.sportF === v ? 'all' : v; jumpToList(); break;
+      case 'unf': ui[v] = 'all'; render(); break;
+      case 'clear-f': ui.city = 'all'; ui.kind = 'all'; ui.sportF = 'all'; jumpToList(); break;
+      case 'tour-tab': ui.tourId = v; rerenderKeepScroll(); break;
+      case 'photo': pickPhoto(el.getAttribute('data-id'), el.getAttribute('data-up')); break;
+      case 'mem-share': if (memoryShare) shareBlob(memoryShare.blob, memoryShare.name); break;
+      case 'mem-share-path': (async function (pth) { await signPhotos([pth]); var r = await fetch(photoUrls[pth]); shareBlob(await r.blob(), pth.split('/').pop()); })(v); break;
+      case 'go-memories': hideOverlay(); ui.memMonth = null; go('memories'); break;
+      case 'mem-month': var dd = new Date(ui.memMonth + '-15T12:00:00'); dd.setMonth(dd.getMonth() + (+v)); ui.memMonth = dd.toISOString().slice(0, 7); render(); break;
+      case 'mem-goto': ui.memMonth = v; render(); break;
+      case 'mem-open': var pr = v.split('|'); var bb = state.bookings.filter(function (b) { return b.activity === pr[0] && addDays(b.checkIn, 1) === pr[1]; })[0]; var mc = document.querySelector('.mem-card'); if (mc) mc.scrollIntoView({ behavior: 'smooth' }); break;
+      case 'wrapped': ui.wrapIdx = 0; ui.wrapYear = (state.stamps.map(function (s) { return s.date.slice(0, 4); }).sort().pop()) || new Date().getFullYear(); go('wrapped'); break;
+      case 'wr-nav': ui.wrapIdx = Math.max(0, ui.wrapIdx + (+v)); if (+v < 0 || document.querySelectorAll('.story-bars i').length > ui.wrapIdx) render(); else go('passport'); break;
+      case 'wr-share': shareWrapped(); break;
       case 'chat-clear': chat = []; saveChat(); render(); break;
     }
   });
@@ -1356,6 +1591,7 @@
   document.addEventListener('change', function (e) {
     if (e.target.id === 'f-checkin' && ui.form && e.target.value) { ui.form.checkIn = e.target.value; rerenderKeepScroll(); }
     if (e.target.id === 'kb-file') uploadKb(e.target.files[0]);
+    if (e.target.id === 'photo-input') handlePhoto(e.target.files[0]);
   });
   document.addEventListener('input', function (e) {
     if (e.target.id === 'chat-text' || e.target.id === 'wall-text') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }
@@ -1366,6 +1602,7 @@
       if (e.target.id === 'chat-text') sendChat(e.target.value); else postWall(e.target.form.getAttribute('data-id'), e.target.value);
     }
   });
+  function jumpToList() { render(); var y0 = document.getElementById('list-anchor'); if (y0) window.scrollTo(0, y0.getBoundingClientRect().top + window.scrollY - 8); }
   function rerenderKeepScroll() { var y = window.scrollY; render(); window.scrollTo(0, y); }
 
   window.addEventListener('hashchange', render);

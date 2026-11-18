@@ -501,3 +501,33 @@ Object.assign(window.ACTIVE_I18N.en, {
 });
 Object.assign(window.ACTIVE_I18N.es, { event_dates_note: 'Evento: {when}. Ajusta la llegada a las fechas oficiales del evento.' });
 Object.assign(window.ACTIVE_I18N.en, { event_dates_note: 'Event: {when}. Set your arrival to the official event dates.' });
+
+/* v5: más deportes, ACTIVE Live, Tour por deporte, recuerdos y Wrapped */
+Object.assign(window.ACTIVE_I18N.es, {
+  explore_title: '¿Qué te apetece en tu próximo viaje?', what_fancy: 'Elige deporte', options: 'opciones', tour_3: '3 circuitos',
+  destinations: 'Destinos', results: 'Resultados', all_activities: 'Todas las actividades', clear_filters: 'Quitar filtros',
+  role_compete: 'Compites', role_watch: 'Vas de público', ticket_note: 'La entrada al evento no está incluida',
+  race_plan: 'Plan del hotel para el evento', race_extras: 'Extras del evento', race_extras_sub: 'Personaliza tu estancia para el evento. Solo en reserva directa.',
+  tour_separate: 'Cada circuito va por separado: puedes hacer solo pádel, solo running o los que quieras.',
+  photo_add: 'Registrar con foto', see_memory: 'Ver mi recuerdo', photo_making: 'Creando tu recuerdo con el sello…', photo_saved: 'Recuerdo guardado en tu calendario',
+  photo_error: 'No se pudo guardar la foto. Inténtalo de nuevo.', share: 'Compartir',
+  memories_title: 'Mis recuerdos', memories_strip: 'Calendario con tus fotos y sellos', memories_sub: 'Cada actividad completada queda en tu calendario. Añade una foto y se guarda con el sello de la ciudad y el logo de ACTIVE.',
+  no_photo: 'Sin foto', memories_empty: 'Este mes no hay actividades. ¡A por la siguiente!', wrapped_strip: 'Tu año deportivo en historias', wrapped_cta: 'Tu resumen del año, listo para compartir',
+  wr_intro: 'Tu año ACTIVE {y}', wr_intro_sub: '{name}, esto es lo que has vivido viajando con Eurostars. Toca para avanzar.', wr_empty: 'Aún no hay actividades este año. ¡El próximo Wrapped será tuyo!',
+  wr_numbers: 'En números', wr_sports: 'deportes', wr_top_sport: 'Tu deporte', wr_times: '{n} veces', wr_top_city: 'Tu ciudad', wr_top_month: 'Tu mes más activo', wr_month_sub: '{n} actividades ese mes',
+  wr_moments: 'Tus momentos', wr_photos: '{n} recuerdos con foto', wr_no_photos: 'Añade fotos a tus actividades para verlas aquí', wr_level: 'Cierras el año como', wr_share: 'Compartir mi Wrapped'
+});
+Object.assign(window.ACTIVE_I18N.en, {
+  explore_title: 'What do you fancy on your next trip?', what_fancy: 'Pick a sport', options: 'options', tour_3: '3 circuits',
+  destinations: 'Destinations', results: 'Results', all_activities: 'All activities', clear_filters: 'Clear filters',
+  role_compete: 'You compete', role_watch: 'You watch', ticket_note: 'Event ticket not included',
+  race_plan: 'Hotel plan for the event', race_extras: 'Event extras', race_extras_sub: 'Customise your stay for the event. Direct booking only.',
+  tour_separate: 'Each circuit is separate: do only padel, only running or as many as you like.',
+  photo_add: 'Log it with a photo', see_memory: 'See my memory', photo_making: 'Creating your memory with the stamp…', photo_saved: 'Memory saved to your calendar',
+  photo_error: 'The photo could not be saved. Please try again.', share: 'Share',
+  memories_title: 'My memories', memories_strip: 'Calendar with your photos and stamps', memories_sub: 'Every completed activity lands in your calendar. Add a photo and it’s saved with the city stamp and the ACTIVE logo.',
+  no_photo: 'No photo', memories_empty: 'No activities this month. On to the next one!', wrapped_strip: 'Your sporting year in stories', wrapped_cta: 'Your year in review, ready to share',
+  wr_intro: 'Your ACTIVE year {y}', wr_intro_sub: '{name}, this is what you lived travelling with Eurostars. Tap to continue.', wr_empty: 'No activities this year yet. Next Wrapped is yours!',
+  wr_numbers: 'In numbers', wr_sports: 'sports', wr_top_sport: 'Your sport', wr_times: '{n} times', wr_top_city: 'Your city', wr_top_month: 'Your most active month', wr_month_sub: '{n} activities that month',
+  wr_moments: 'Your moments', wr_photos: '{n} memories with photo', wr_no_photos: 'Add photos to your activities to see them here', wr_level: 'You end the year as', wr_share: 'Share my Wrapped'
+});

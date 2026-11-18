@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const es = (o) => (o == null ? '' : typeof o === 'string' ? o : o.es);
 const city = (id) => D.cities.find((c) => c.id === id);
-const sport = { run: 'Running', padel: 'Pádel', gym: 'Gym & Wellness' };
+const sport = Object.fromEntries(D.sports.map((x) => [x.id, x.label.es]));
 const today = new Date().toISOString().slice(0, 10);
 
 const lvl = (id) => (D.levels.find((l) => l.id === id) || {}).name;
@@ -40,7 +40,7 @@ Este documento es la fuente oficial de información de Stella, la asistente de A
 
 <h2>1. Qué es ACTIVE by Eurostars</h2>
 <p>ACTIVE by Eurostars es el programa deportivo de Eurostars Hotel Company (Grupo Hotusa) que conecta a viajeros activos con comunidades, actividades y eventos deportivos locales en los destinos donde opera Eurostars. El hotel es el punto de encuentro; la comunidad crea participación; los eventos, motivos para viajar; y el estatus, motivos para volver.</p>
-<p>Cuatro pilares: <b>Stay</b> (reserva directa con ventajas deportivas), <b>Community</b> (quedadas de running y pádel con clubes locales y otros huéspedes), <b>Events</b> (Run Tours, circuitos de pádel y Race Day Packs) y <b>Status</b> (niveles y Sport Passport). Empezamos por running, pádel y gym & wellness con partners, pero cualquier deporte cuenta. El hotel conecta y reconoce; la actividad la organizan partners locales.</p>
+<p>Cuatro pilares: <b>Stay</b> (reserva directa con ventajas deportivas), <b>Community</b> (quedadas de running y pádel con clubes locales y otros huéspedes), <b>Events</b> (Run Tours, circuitos de pádel y Race Day Packs) y <b>Status</b> (niveles y Sport Passport). Cualquier deporte cuenta: running, pádel, surf, paddle surf, trekking, golf (con sello de cada campo), bici, yoga, natación, tenis y gym/HYROX, según la ciudad. El hotel conecta y reconoce; la actividad la organizan partners locales.</p>
 <p>Perfiles de cliente: <b>Sport Travellers</b> (viajan por deporte: competir, entrenar o participar en un evento) y <b>Active Explorers</b> (viajan por ocio o trabajo y no quieren romper su rutina).</p>
 <p>Fase actual: piloto de 90 días en Eurostars Madrid Tower y Eurostars Torre Sevilla, con más ciudades de la red en despliegue.</p>
 
@@ -71,16 +71,20 @@ ${D.cities.map((c) => `<tr><td>${c.name.es} (${es(c.country)})</td><td>${c.hotel
 
 <h2>5b. Los 3 tipos de evento ACTIVE</h2>
 ${Object.values(D.kinds).map((k) => `<h3>${k.name} · ${k.tag.es}</h3><p>${k.what.es} <b>Público:</b> ${k.who.es}.</p>`).join('')}
-<h3>Extras de Race Weekend (solo en reserva directa, se añaden a la reserva de habitación)</h3>
-<ul>${D.upsells.map((u) => `<li>${u.title.es}: ${u.price ? u.price + ' €' : 'incluido'}${u.freeFrom ? ' (gratis desde nivel ' + lvl(u.freeFrom) + ')' : ''}</li>`).join('')}</ul>
+<h3>Extras de ACTIVE Live (solo en reserva directa, se añaden a la reserva de habitación)</h3>
+<ul>${D.upsells.map((u) => `<li>${u.title.es}: ${u.price ? u.price + ' €' : 'incluido'}${u.freeFrom ? ' (gratis desde nivel ' + lvl(u.freeFrom) + ')' : ''} · disponible en: ${u.sets.map((x) => ({ race: 'carreras', fitness: 'HYROX/fitness', fan: 'eventos como público' })[x]).join(', ')}</li>`).join('')}</ul>
+<p>En ACTIVE Live hay dos modalidades: <b>compites</b> (maratones, medias, HYROX; el dorsal no está incluido) o <b>vas de público</b> (Premier Padel/FIP, Mutua Madrid Open, Barcelona Open, Internazionali d'Italia; la entrada no está incluida). Las fechas exactas dependen del calendario oficial de cada evento.</p>
 <p>El dorsal de la carrera no está incluido: se compra en la web oficial de cada evento. Las maratones figuran como colaboradores propuestos (no hay acuerdo firmado).</p>
 <h3>Política de precios</h3>
 <p>Las experiencias ACTIVE Local sencillas organizadas por el hotel (Run Tours, quedadas) están incluidas con la reserva directa. Las actividades con partner (pádel) tienen precio por persona. Los gym pass en clubs premium (David Lloyd, Holmes Place), normalmente reservados a socios, cuestan entre 15 y 18 € y son gratis desde el nivel Challenger. La inscripción a cada parada del ACTIVE Tour cuesta 25 € y es gratis para nivel Ambassador.</p>
 
-<h2>5c. ACTIVE Tour ${D.tour.season}</h2>
-<p>Circuito de eventos organizado por Grupo Hotusa en los hoteles Eurostars, inspirado en circuitos como el BamVolea Tour. Formato: 10K urbano + reto de pádel. Cada parada suma ${D.tour.points.stop} puntos (+${D.tour.points.top10} si quedas top 10 de tu categoría) y un sello en el Sport Passport.</p>
-<ul>${D.activities.filter((a) => a.kind === 'tour').map((a) => `<li>${a.title.es}: ${a.when.es} · ${a.meet.es} (id: ${a.id})</li>`).join('')}</ul>
+<h2>5c. ACTIVE Tour ${D.tour.season}: un circuito por deporte</h2>
+<p>El ACTIVE Tour lo organiza Grupo Hotusa y va <b>por separado por deporte</b>: cada socio puede apuntarse solo al circuito que le interese (por ejemplo, solo pádel o solo running) o a varios. Cada circuito tiene su propio ranking y su Master Final. Cada parada cuesta 25 € (gratis para nivel Ambassador), suma ${D.tour.points.stop} puntos (+${D.tour.points.top10} si quedas top 10 de tu categoría) y un sello en el Sport Passport.</p>
+${D.tours.map((tr) => `<h3>${tr.name}</h3><p>Formato: ${tr.format.es}.</p><ul>${D.activities.filter((a) => a.tour === tr.id).map((a) => `<li>${a.final ? 'Master Final' : 'Parada ' + a.stop} · ${city(a.city).name.es} · ${a.when.es} (id: ${a.id})</li>`).join('')}</ul>`).join('')}
 <p>Premios: ${D.tour.rewards.es.join('; ')}.</p>
+
+<h2>5g. Recuerdos y ACTIVE Wrapped</h2>
+<p>Al completar una actividad, el socio puede registrarla con una foto: la app le añade como marca de agua el sello de la ciudad (o del campo de golf) y el logo de ACTIVE by Eurostars. Las fotos se guardan de forma privada en su calendario "Mis recuerdos" y pueden compartirse. Al final del año (y en vista previa durante el año) se genera el ACTIVE Wrapped: actividades, ciudades, deporte favorito, ciudad favorita, mes más activo, fotos y nivel, listo para compartir.</p>
 
 <h2>5d. Programa Embajador</h2>
 <p>Embajadores ACTIVE: corredores, clubs, entrenadores y creadores que organizan sus propios eventos en la red Eurostars. Se accede completando 10 actividades en 3 ciudades (nivel Ambassador) o por solicitud desde la app (Perfil o Pasaporte → Programa Embajador). Ventajas propuestas: espacio y difusión para sus eventos en hoteles Eurostars, 20 % de descuento en estancias, 1 noche gratis por cada evento con 10+ participantes alojados, kit ASICS, gym premium gratis, inscripción gratis al ACTIVE Tour y 5 % de comisión en reservas con su código (propuesta).</p>
