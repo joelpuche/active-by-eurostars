@@ -298,7 +298,13 @@
   var BEFORE_LEAVE = null;
 
   function render() {
-    if (!booted) { view.innerHTML = '<div class="splash">' + isotype('splash-iso') + '</div>'; document.body.classList.add('dark'); return; }
+    if (!booted) {
+      if (!view.querySelector('.splash')) view.innerHTML = '<div class="splash"><div class="splash-glow"></div>' +
+        '<div class="splash-mark">' + isotype('splash-iso') + '</div>' +
+        '<div class="splash-word"><b>ACTIVE</b><span>BY EUROSTARS</span></div>' +
+        '<p class="splash-tag">Travel further. Play together.</p><div class="splash-bar"><i></i></div></div>';
+      document.body.classList.add('dark'); tabbar.hidden = true; return;
+    }
     var r = route();
     if (BEFORE_LEAVE) { BEFORE_LEAVE(); BEFORE_LEAVE = null; }
     if (!state.user && !PUBLIC[r.name]) { location.replace('#/welcome'); return; }
@@ -341,7 +347,7 @@
   }
   function topbar() {
     var lv = level();
-    return '<header class="topbar">' + lockup(true) +
+    return '<header class="topbar">' + lockup() +
       '<button class="lvl-chip" data-action="go" data-href="passport">' + isotype('iso-xs') + lv.name + '</button></header>';
   }
   function subbar(title, back, dark) {
@@ -483,8 +489,8 @@
         '<div class="list-head"><h3 class="h-sec">' + (filtering ? t('results') : t('all_activities')) + ' <span class="count">' + list.length + '</span></h3>' +
           (filtering ? '<button class="link-btn" data-action="clear-f">' + t('clear_filters') + '</button>' : '') + '</div>' +
         (pills.length ? '<div class="pills">' + pills.map(function (p) { return '<button class="pill-f" data-action="unf" data-v="' + p[0] + '">' + p[1] + icon('x') + '</button>'; }).join('') + '</div>' : '') +
-        '<div class="seg seg-full seg-light seg-scroll">' + ['all', 'local', 'race', 'tour'].map(function (k) {
-          return '<button class="' + (ui.kind === k ? 'on' : '') + '" data-action="kind" data-v="' + k + '">' + (k === 'all' ? t('filter_all') : D.kinds[k].name) + '</button>'; }).join('') + '</div>' +
+        '<div class="kind-grid">' + ['all', 'local', 'race', 'tour'].map(function (k) {
+          return '<button class="kg' + (ui.kind === k ? ' on' : '') + '" data-action="kind" data-v="' + k + '">' + icon(k === 'all' ? 'globe' : D.kinds[k].icon) + '<span>' + (k === 'all' ? t('filter_all') : D.kinds[k].name.replace('ACTIVE ', '')) + '</span></button>'; }).join('') + '</div>' +
         (ui.kind !== 'all' ? '<p class="kind-note">' + icon('user') + esc(L(D.kinds[ui.kind].who)) + '</p>' : '') +
       '</section>' +
       '<div class="chips">' +
@@ -1610,11 +1616,14 @@
 
   /* ---------- Arranque ---------- */
   render();
+  var splashMin = new Promise(function (r) { setTimeout(r, 1600); });
   (async function boot() {
     try {
       var s = await sb.auth.getSession();
       if (s.data && s.data.session) await loadProfile(s.data.session.user);
     } catch (e) { console.warn(e); }
+    await splashMin;
+    var sp = view.querySelector('.splash'); if (sp) { sp.classList.add('out'); await new Promise(function (r) { setTimeout(r, 380); }); }
     booted = true;
     render();
   })();
