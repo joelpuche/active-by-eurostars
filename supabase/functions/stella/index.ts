@@ -93,7 +93,8 @@ CONTEXTO DEL USUARIO (de la app, fiable):
 - Hoy es ${new Date().toLocaleDateString(ctx.lang === 'en' ? 'en-GB' : 'es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' })} (usa esta fecha para calcular días de la semana; no supongas otros)
 - Nombre: ${ctx.name || 'socio'} · Deporte favorito: ${ctx.sport || 'running'} · Nivel: ${ctx.level || 'Explorer'}
 - Actividades completadas: ${ctx.count ?? 0} · Ciudades con sello: ${(ctx.cities || []).join(', ') || 'ninguna'}
-- Próximas reservas: ${(ctx.upcoming || []).join('; ') || 'ninguna'}`;
+- Próximas reservas: ${(ctx.upcoming || []).join('; ') || 'ninguna'}
+- PRECIOS YA CALCULADOS PARA SU NIVEL (fiables; para cualquier precio que dependa del nivel usa SIEMPRE esta lista tal cual, nunca deduzcas otro): ${(ctx.prices || []).join('; ') || 'sin datos'}`;
 }
 
 const TOOLS = [{
@@ -104,11 +105,11 @@ const TOOLS = [{
   }],
 }];
 
-async function gemini(key: string, model: string, system: string, contents: unknown[]) {
+async function gemini(key: string, model: string, system: string, contents: unknown[], ms = 25000) {
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents, tools: TOOLS, generationConfig: { temperature: 0.5, maxOutputTokens: 2048 } }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(ms),
   });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, cand: data?.candidates?.[0], err: data?.error?.message || '' };
@@ -126,7 +127,7 @@ async function answer(key: string, system: string, base: any[], lang: string) {
     const hits: Hit[] = [];
     for (let step = 0; step < 3; step++) {
       let r;
-      try { r = await gemini(key, model, system, contents); } catch (e) { r = { ok: false, status: 0, cand: null, err: String(e) }; }
+      try { r = await gemini(key, model, system, contents, model === order[0] ? 45000 : 22000); } catch (e) { r = { ok: false, status: 0, cand: null, err: String(e) }; }
       if (!r.ok || !r.cand) { errors.push({ model, status: r.status, err: String(r.err).slice(0, 160) }); break; }
       const parts = r.cand.content?.parts || [];
       const calls = parts.filter((p: any) => p.functionCall);

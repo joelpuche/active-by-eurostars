@@ -10,7 +10,9 @@ const city = (id) => D.cities.find((c) => c.id === id);
 const sport = { run: 'Running', padel: 'Pádel', gym: 'Gym & Wellness' };
 const today = new Date().toISOString().slice(0, 10);
 
-const rows = D.activities.map((a) => `<tr><td><b>${es(a.title)}</b><br><small>id: ${a.id}</small></td><td>${es(city(a.city).name)}</td><td>${a.type === 'event' ? 'Evento' : sport[a.sport]}</td><td>${a.partner}</td><td>${es(a.when)}</td><td>${es(a.distance)}</td><td>${es(a.level)}</td><td>${a.price ? a.price + ' € / persona' : 'Incluido con la estancia'}</td><td>${es(a.meet)}</td></tr><tr class="d"><td colspan="9">${es(a.desc)}</td></tr>`).join('');
+const lvl = (id) => (D.levels.find((l) => l.id === id) || {}).name;
+const priceTxt = (a) => a.invite ? 'Solo por invitación' : !a.price ? 'Incluido con la reserva directa' : a.price + ' € / persona' + (a.freeFrom ? ' (gratis desde nivel ' + lvl(a.freeFrom) + ')' : '');
+const rows = D.activities.map((a) => `<tr><td><b>${es(a.title)}</b><br><small>id: ${a.id}</small></td><td>${es(city(a.city).name)}</td><td>${D.kinds[a.kind].name} · ${sport[a.sport] || a.sport}</td><td>${a.partner}</td><td>${es(a.when)}</td><td>${es(a.distance)}</td><td>${es(a.level)}</td><td>${priceTxt(a)}${a.bibNote ? '. Dorsal no incluido' : ''}${a.exclusive ? '. Club privado normalmente solo para socios' : ''}</td><td>${es(a.meet)}</td></tr><tr class="d"><td colspan="9">${es(a.desc)}</td></tr>`).join('');
 
 const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Base de conocimiento Stella · ACTIVE by Eurostars</title>
 <style>
@@ -38,7 +40,7 @@ Este documento es la fuente oficial de información de Stella, la asistente de A
 
 <h2>1. Qué es ACTIVE by Eurostars</h2>
 <p>ACTIVE by Eurostars es el programa deportivo de Eurostars Hotel Company (Grupo Hotusa) que conecta a viajeros activos con comunidades, actividades y eventos deportivos locales en los destinos donde opera Eurostars. El hotel es el punto de encuentro; la comunidad crea participación; los eventos, motivos para viajar; y el estatus, motivos para volver.</p>
-<p>Cuatro pilares: <b>Stay</b> (reserva directa con ventajas deportivas), <b>Community</b> (quedadas de running y pádel con clubes locales y otros huéspedes), <b>Events</b> (Run Tours, circuitos de pádel y Race Day Packs) y <b>Status</b> (niveles y Sport Passport). Empezamos por running y pádel, más gym & wellness con partners. El hotel conecta y reconoce; la actividad la organizan partners locales.</p>
+<p>Cuatro pilares: <b>Stay</b> (reserva directa con ventajas deportivas), <b>Community</b> (quedadas de running y pádel con clubes locales y otros huéspedes), <b>Events</b> (Run Tours, circuitos de pádel y Race Day Packs) y <b>Status</b> (niveles y Sport Passport). Empezamos por running, pádel y gym & wellness con partners, pero cualquier deporte cuenta. El hotel conecta y reconoce; la actividad la organizan partners locales.</p>
 <p>Perfiles de cliente: <b>Sport Travellers</b> (viajan por deporte: competir, entrenar o participar en un evento) y <b>Active Explorers</b> (viajan por ocio o trabajo y no quieren romper su rutina).</p>
 <p>Fase actual: piloto de 90 días en Eurostars Madrid Tower y Eurostars Torre Sevilla, con más ciudades de la red en despliegue.</p>
 
@@ -47,8 +49,8 @@ Este documento es la fuente oficial de información de Stella, la asistente de A
 <li>El huésped descubre una actividad en la app/web ACTIVE y reserva habitación + plaza en un solo paso, siempre en el canal oficial de Eurostars (reserva directa).</li>
 <li>Recibe su ACTIVE Pass con código QR. En el check-in, recepción activa el pase y entrega el kit de bienvenida.</li>
 <li>Al terminar la actividad, el partner valida el QR y se estampa el sello de la ciudad en el Sport Passport.</li>
-<li>Con cada actividad se progresa de nivel. Las actividades sociales básicas (Run Tours, quedadas, day pass de partners) están incluidas con la estancia; algunas actividades de pista tienen un precio por persona indicado en el calendario.</li>
-<li>Se puede crear cuenta solo con nombre de usuario y contraseña. Opción "Recordarme" para mantener la sesión.</li>
+<li>Con cada actividad se progresa de nivel. Ver la política de precios en el apartado 5b.</li>
+<li>Se puede crear cuenta solo con nombre de usuario y contraseña (opción "Recordarme"). Al registrarse, el socio elige qué espera de ACTIVE (planes en sus viajes, sus deportes, grandes eventos, ACTIVE Tour, conocer gente, gym y recuperación) y sus deportes; las recomendaciones se basan en ello. Cualquier deporte cuenta.</li>
 </ul>
 
 <h2>3. Niveles de estatus y ventajas</h2>
@@ -64,11 +66,34 @@ ${D.cities.map((c) => `<tr><td>${c.name.es} (${es(c.country)})</td><td>${c.hotel
 <p>Tipos de habitación: Classic (precio base), Superior (+20%) y Junior Suite (+60%). Impuestos incluidos, pago en el hotel. Ventaja de reserva directa ACTIVE: desayuno temprano + lavado exprés de ropa deportiva incluidos.</p>
 
 <h2>5. Calendario de actividades (actualización semanal)</h2>
-<table><tr><th>Actividad</th><th>Ciudad</th><th>Tipo</th><th>Partner</th><th>Cuándo</th><th>Distancia / duración</th><th>Nivel</th><th>Precio</th><th>Punto de encuentro</th></tr>${rows}</table>
+<table><tr><th>Actividad</th><th>Ciudad</th><th>Tipo de evento · deporte</th><th>Partner</th><th>Cuándo</th><th>Distancia / duración</th><th>Nivel</th><th>Precio</th><th>Punto de encuentro</th></tr>${rows}</table>
 
-<h2>6. Partners oficiales</h2>
+
+<h2>5b. Los 3 tipos de evento ACTIVE</h2>
+${Object.values(D.kinds).map((k) => `<h3>${k.name} · ${k.tag.es}</h3><p>${k.what.es} <b>Público:</b> ${k.who.es}.</p>`).join('')}
+<h3>Extras de Race Weekend (solo en reserva directa, se añaden a la reserva de habitación)</h3>
+<ul>${D.upsells.map((u) => `<li>${u.title.es}: ${u.price ? u.price + ' €' : 'incluido'}${u.freeFrom ? ' (gratis desde nivel ' + lvl(u.freeFrom) + ')' : ''}</li>`).join('')}</ul>
+<p>El dorsal de la carrera no está incluido: se compra en la web oficial de cada evento. Las maratones figuran como colaboradores propuestos (no hay acuerdo firmado).</p>
+<h3>Política de precios</h3>
+<p>Las experiencias ACTIVE Local sencillas organizadas por el hotel (Run Tours, quedadas) están incluidas con la reserva directa. Las actividades con partner (pádel) tienen precio por persona. Los gym pass en clubs premium (David Lloyd, Holmes Place), normalmente reservados a socios, cuestan entre 15 y 18 € y son gratis desde el nivel Challenger. La inscripción a cada parada del ACTIVE Tour cuesta 25 € y es gratis para nivel Ambassador.</p>
+
+<h2>5c. ACTIVE Tour ${D.tour.season}</h2>
+<p>Circuito de eventos organizado por Grupo Hotusa en los hoteles Eurostars, inspirado en circuitos como el BamVolea Tour. Formato: 10K urbano + reto de pádel. Cada parada suma ${D.tour.points.stop} puntos (+${D.tour.points.top10} si quedas top 10 de tu categoría) y un sello en el Sport Passport.</p>
+<ul>${D.activities.filter((a) => a.kind === 'tour').map((a) => `<li>${a.title.es}: ${a.when.es} · ${a.meet.es} (id: ${a.id})</li>`).join('')}</ul>
+<p>Premios: ${D.tour.rewards.es.join('; ')}.</p>
+
+<h2>5d. Programa Embajador</h2>
+<p>Embajadores ACTIVE: corredores, clubs, entrenadores y creadores que organizan sus propios eventos en la red Eurostars. Se accede completando 10 actividades en 3 ciudades (nivel Ambassador) o por solicitud desde la app (Perfil o Pasaporte → Programa Embajador). Ventajas propuestas: espacio y difusión para sus eventos en hoteles Eurostars, 20 % de descuento en estancias, 1 noche gratis por cada evento con 10+ participantes alojados, kit ASICS, gym premium gratis, inscripción gratis al ACTIVE Tour y 5 % de comisión en reservas con su código (propuesta).</p>
+
+<h2>5e. Colabora con ACTIVE</h2>
+<p>Empresas, marcas, clubs, organizadores de eventos y particulares pueden proponer colaboraciones (patrocinio, eventos, acceso a clubs, embajadores) desde el botón "Colabora con ACTIVE" de la app. El equipo responde a cada propuesta.</p>
+
+<h2>5f. Comunidad</h2>
+<p>Cada actividad y quedada tiene un muro del evento donde los socios apuntados pueden ver quién va y hablar entre ellos (por ejemplo, para compartir ritmo o quedar antes). Al reservar, el socio aparece automáticamente como asistente.</p>
+
+<h2>6. Partners oficiales (acuerdos de ejemplo del MVP)</h2>
 ${D.partners.map((p) => `<h3>${p.name} · ${p.tagline.es}</h3><p>${p.desc.es} Web: ${p.url}</p><ul>${p.perks.es.map((x) => `<li>${x}</li>`).join('')}</ul>`).join('')}
-<p>Clubes locales colaboradores: ${[...new Set(D.activities.map((a) => a.partner))].join(', ')}.</p>
+<p>Clubes locales colaboradores: ${[...new Set(D.activities.filter((a) => !a.partnerId && a.kind === 'local').map((a) => a.partner))].join(', ')}.</p>
 
 <h3>Quedadas de comunidad activas</h3>
 <ul>${D.meetups.map((m) => `<li>${es(city(m.city).name)} · ${m.title.es} · ${m.club} · ${m.when.es} (${m.from.es})</li>`).join('')}</ul>
@@ -78,7 +103,7 @@ ${D.partners.map((p) => `<h3>${p.name} · ${p.tagline.es}</h3><p>${p.desc.es} We
 <ul>
 <li>Run Tours y quedadas de running: a partir de 12 años acompañados de un adulto responsable inscrito en la misma actividad. Ritmo social, apto para familias activas.</li>
 <li>Pádel en clubes partner: a partir de 10 años acompañados de un adulto; las americanas sociales son para mayores de 16.</li>
-<li>Day pass de gym & wellness: según la normativa de cada club (zonas de gimnasio solo para mayores de 16; piscina familiar disponible en horario indicado por el club).</li>
+<li>Gym pass en clubs partner: según la normativa de cada club (zonas de gimnasio solo para mayores de 16; piscina familiar disponible en horario indicado por el club).</li>
 <li>Race Day Packs: la edad mínima la fija el reglamento oficial de cada carrera.</li>
 </ul>
 <h3>Reservas y cancelación</h3>

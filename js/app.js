@@ -1,5 +1,5 @@
 /* ACTIVE by Eurostars · MVP web-app
-   Cuentas y progreso en Supabase · Stella (IA) vía función segura · reservas y pagos simulados */
+   Cuentas y progreso en Supabase · Stella (IA) · muro social en tiempo real · reservas y pagos simulados */
 (function () {
   'use strict';
 
@@ -13,7 +13,7 @@
   var overlay = document.getElementById('overlay');
   var toastEl = document.getElementById('toast');
 
-  /* ---------- Almacenamiento seguro (puede fallar en modo privado) ---------- */
+  /* ---------- Almacenamiento seguro ---------- */
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
@@ -21,7 +21,7 @@
   function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
   function ssDel(k) { try { sessionStorage.removeItem(k); } catch (e) {} }
 
-  /* «Recordarme»: la sesión vive en localStorage (persistente) o en sessionStorage (se borra al cerrar la app) */
+  /* «Recordarme»: sesión en localStorage (persistente) o sessionStorage (se borra al cerrar la app) */
   function remember() { return lsGet(REMEMBER_KEY) !== '0'; }
   function setRemember(on) { lsSet(REMEMBER_KEY, on ? '1' : '0'); }
   var authStorage = {
@@ -36,10 +36,10 @@
   /* ---------- Estado ---------- */
   var booted = false;
   var state = emptyState();
-  var ui = { city: 'all', sport: 'all', commCity: 'all', commTab: 'meetups', form: null, regSport: 'run', authTab: 'register', showPw: false, authBusy: false, authErr: '', chatBusy: false };
+  var ui = { city: 'all', kind: 'all', commCity: 'all', commTab: 'meetups', form: null, authTab: 'register', showPw: false, authBusy: false, authErr: '', chatBusy: false, prefsDraft: null, collabKind: 'sponsor', collabSent: false, ambSent: false, wall: null };
   var chat = [];
 
-  function emptyState() { return { user: null, stamps: [], bookings: [], joined: [] }; }
+  function emptyState() { return { user: null, prefs: { goals: [], sports: [] }, stamps: [], bookings: [], joined: [] }; }
   function cacheKey() { return 'active-cache-' + (state.user ? state.user.id : ''); }
   var saveTimer;
   function save() {
@@ -48,25 +48,26 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       sb.from('profiles').update({
-        display_name: state.user.name, sport: state.user.sport, updated_at: new Date().toISOString(),
-        state: { stamps: state.stamps, bookings: state.bookings, joined: state.joined, since: state.user.since }
+        display_name: state.user.name, updated_at: new Date().toISOString(),
+        state: { stamps: state.stamps, bookings: state.bookings, joined: state.joined, since: state.user.since, prefs: state.prefs }
       }).eq('id', state.user.id).then(function (r) { if (r.error) console.warn('sync', r.error.message); });
     }, 500);
   }
 
   async function loadProfile(authUser) {
-    var r = await sb.from('profiles').select('username, display_name, sport, state, is_admin, created_at').eq('id', authUser.id).maybeSingle();
+    var r = await sb.from('profiles').select('username, display_name, state, is_admin, created_at').eq('id', authUser.id).maybeSingle();
     if (r.data) {
       var st = r.data.state || {};
       state = {
-        user: { id: authUser.id, username: r.data.username, name: r.data.display_name, sport: r.data.sport, isAdmin: !!r.data.is_admin, since: st.since || (r.data.created_at || '').slice(0, 10) },
+        user: { id: authUser.id, username: r.data.username, name: r.data.display_name, isAdmin: !!r.data.is_admin, since: st.since || (r.data.created_at || '').slice(0, 10) },
+        prefs: st.prefs || { goals: [], sports: [] },
         stamps: st.stamps || [], bookings: st.bookings || [], joined: st.joined || []
       };
       lsSet(cacheKey(), JSON.stringify(state));
     } else {
-      // Sin conexión: usamos la última copia local
       var cached = null; try { cached = JSON.parse(lsGet('active-cache-' + authUser.id)); } catch (e) {}
       state = cached && cached.user ? cached : emptyState();
+      if (!state.prefs) state.prefs = { goals: [], sports: [] };
     }
     try { chat = JSON.parse(lsGet('active-chat-' + authUser.id)) || []; } catch (e) { chat = []; }
   }
@@ -88,10 +89,12 @@
   }
   function L(o) { return o == null ? '' : (typeof o === 'string' ? o : (o[lang] || o.es)); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function city(id) { return D.cities.filter(function (c) { return c.id === id; })[0]; }
-  function act(id) { return D.activities.filter(function (a) { return a.id === id; })[0]; }
-  function partner(id) { return D.partners.filter(function (p) { return p.id === id; })[0]; }
-  function booking(id) { return state.bookings.filter(function (b) { return b.id === id; })[0]; }
+  function byId(list, id) { return list.filter(function (x) { return x.id === id; })[0]; }
+  function city(id) { return byId(D.cities, id); }
+  function act(id) { return byId(D.activities, id); }
+  function partner(id) { return byId(D.partners, id); }
+  function meetup(id) { return byId(D.meetups, id); }
+  function booking(id) { return byId(state.bookings, id); }
   function money(n) { return n.toLocaleString(lang === 'en' ? 'en-GB' : 'es-ES') + ' €'; }
   function fmtDate(iso, opts) {
     var d = new Date(iso + 'T12:00:00');
@@ -100,14 +103,22 @@
   }
   function addDays(iso, n) { var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
   function nextFriday() { var d = new Date(); var add = (5 - d.getDay() + 7) % 7 || 7; d.setDate(d.getDate() + add); return d.toISOString().slice(0, 10); }
+  function firstFriday(ym) { var d = new Date(ym + '-01T12:00:00'); d.setDate(1 + ((5 - d.getDay() + 7) % 7)); return d.toISOString().slice(0, 10); }
   function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-  function stampSport(a) { return a.type === 'event' ? 'event' : a.sport; }
-  function sportLabel(s) { return s === 'padel' ? t('sport_padel') : s === 'event' ? t('filter_event') : s === 'gym' ? t('sport_gym') : t('sport_run'); }
-  function initials(n) { return (n || '?').trim().split(/\s+/).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase(); }
+  function stampSport(a) { return a.kind === 'race' ? 'event' : a.sport; }
+  function sportLabel(s) { var x = byId(D.sports, s); return s === 'event' ? t('filter_event') : x ? L(x.label) : t('sport_run'); }
+  function initials(n) { return ((n || '?').trim().split(/\s+/).filter(function (p) { return /^[\p{L}\d]/u.test(p); }).map(function (p) { return p[0]; }).join('') || '?').slice(0, 2).toUpperCase(); }
   function code() { var c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = 'AE-'; for (var i = 0; i < 5; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
   function emailFor(u) { return u + '@' + CFG.userDomain; }
+  function timeAgo(iso) {
+    var s = Math.max(1, Math.round((Date.now() - new Date(iso)) / 1000));
+    var rtf = new Intl.RelativeTimeFormat(lang === 'en' ? 'en' : 'es', { numeric: 'auto' });
+    if (s < 3600) return rtf.format(-Math.max(1, Math.round(s / 60)), 'minute');
+    if (s < 86400) return rtf.format(-Math.round(s / 3600), 'hour');
+    return rtf.format(-Math.round(s / 86400), 'day');
+  }
 
-  /* ---------- Estatus ---------- */
+  /* ---------- Estatus y precios por nivel ---------- */
   function stats() {
     var cities = {}; state.stamps.forEach(function (s) { cities[s.city] = 1; });
     return { count: state.stamps.length, cities: Object.keys(cities).length, cityList: Object.keys(cities) };
@@ -118,6 +129,51 @@
     return idx;
   }
   function level() { return D.levels[levelIndex()]; }
+  function levelIdxOf(id) { for (var i = 0; i < D.levels.length; i++) if (D.levels[i].id === id) return i; return 99; }
+  function levelName(id) { var i = levelIdxOf(id); return D.levels[i] ? D.levels[i].name : id; }
+  // Precio real para el usuario: gratis si su nivel lo desbloquea
+  function priceFor(item) {
+    var free = item.freeFrom && levelIndex() >= levelIdxOf(item.freeFrom);
+    return { amount: free ? 0 : item.price, base: item.price, unlocked: !!free };
+  }
+  function priceLabel(a, short) {
+    if (a.invite) return t('invite_only');
+    var p = priceFor(a);
+    if (p.unlocked) return t('free_for_level', { level: level().name });
+    if (!a.price) return short ? t('included') : t('included_direct');
+    return money(a.price) + (a.freeFrom && !short ? ' · ' + t('free_from', { level: levelName(a.freeFrom) }) : '');
+  }
+
+  /* ---------- Recomendaciones según objetivos e intereses ---------- */
+  function score(a) {
+    var s = 0, p = state.prefs || {}, have = {};
+    state.stamps.forEach(function (x) { have[x.city] = 1; });
+    (p.goals || []).forEach(function (g) { var go = byId(D.goals, g); if (go && go.kinds.indexOf(a.kind) >= 0) s += 3; if (g === 'wellness' && a.sport === 'gym') s += 3; });
+    if ((p.sports || []).indexOf(a.sport) >= 0) s += 2;
+    if (!have[a.city]) s += 1;
+    if (city(a.city).pilot) s += 0.5;
+    if (a.invite) s -= 10;
+    return s;
+  }
+  function reasonFor(a) {
+    var p = state.prefs || {}, have = {};
+    state.stamps.forEach(function (x) { have[x.city] = 1; });
+    var g = (p.goals || []).map(function (id) { return byId(D.goals, id); }).filter(function (go) { return go && go.kinds.indexOf(a.kind) >= 0; })[0];
+    if (g) return L(g.label);
+    if ((p.sports || []).indexOf(a.sport) >= 0) return t('reason_sport', { sport: sportLabel(a.sport) });
+    if (!have[a.city]) return t('reason_stamp');
+    return D.kinds[a.kind].name;
+  }
+  function recommended(n) {
+    // Variedad: penaliza repetir tipo de evento y ciudad
+    var pool = D.activities.filter(function (a) { return !a.invite; }), out = [], kc = {}, cc = {};
+    function adj(a) { return score(a) - 1.5 * (kc[a.kind] || 0) - (cc[a.city] || 0); }
+    while (out.length < (n || 5) && pool.length) {
+      pool.sort(function (a, b) { return adj(b) - adj(a); });
+      var x = pool.shift(); out.push(x); kc[x.kind] = (kc[x.kind] || 0) + 1; cc[x.city] = (cc[x.city] || 0) + 1;
+    }
+    return out;
+  }
 
   /* ---------- Iconos (trazo 2px, estilo manual de marca) ---------- */
   var IC = {
@@ -125,13 +181,16 @@
     padel: '<ellipse cx="10" cy="9" rx="6" ry="6.5"/><path d="M13.8 14l5.7 7"/><circle cx="19" cy="4.5" r="1.6"/><path d="M8 7h.01M12 7h.01M10 10h.01M8 12h.01M12 12h.01"/>',
     gym: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
     event: '<path d="M6 21V4"/><path d="M6 4h11l-2.5 4L17 12H6"/>',
+    trail: '<path d="M3 20l6-10 4 6 3-4 5 8z"/>', cycling: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2 7"/>',
+    swim: '<path d="M3 17c2 0 2-1.5 4.5-1.5S9.5 17 12 17s2-1.5 4.5-1.5S18.5 17 21 17"/><circle cx="16" cy="7" r="2"/><path d="M5 13l5-5 3 3"/>',
+    tennis: '<circle cx="12" cy="12" r="8"/><path d="M5 7c3 2 3 8 0 10M19 7c-3 2-3 8 0 10"/>', yoga: '<circle cx="12" cy="5" r="2"/><path d="M4 20l4-4h8l4 4M12 8v8M6 11l6-2 6 2"/>',
+    triathlon: '<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/>', surf: '<path d="M6 21C6 12 11 5 18 3c0 9-5 16-12 18z"/><path d="M8 17l6-8"/>',
     compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
     ticket: '<path d="M3 8a2 2 0 002-2h14a2 2 0 002 2v2a2 2 0 000 4v2a2 2 0 00-2 2H5a2 2 0 00-2-2v-2a2 2 0 000-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/>',
     passport: '<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M9 16h6"/>',
     users: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.4 5 2.8 5 5.8"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
-    back: '<path d="M15 5l-7 7 7 7"/>',
-    chev: '<path d="M9 5l7 7-7 7"/>',
+    back: '<path d="M15 5l-7 7 7 7"/>', chev: '<path d="M9 5l7 7-7 7"/>',
     pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
@@ -141,8 +200,7 @@
     bed: '<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 00-3-3h-7v6"/><circle cx="7" cy="11.5" r="1.8"/>',
     gauge: '<path d="M4 18a8 8 0 1116 0"/><path d="M12 18l4-6"/>',
     route: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>',
-    minus: '<path d="M5 12h14"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
     qr: '<rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
@@ -157,7 +215,10 @@
     bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/>',
     gift: '<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13"/><path d="M12 8c-2-3-6-3-6-.5S9.5 8 12 8zM12 8c2-3 6-3 6-.5S14.5 8 12 8z"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
-    download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 18v2h16v-2"/>'
+    download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 18v2h16v-2"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/>', eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    handshake: '<path d="M3 11l4-4 4 2 3-2 7 4-6 6-3-2-3 2z"/><path d="M8 14l2 2M11 13l2 2"/>',
+    crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>', trophy: '<path d="M8 4h8v5a4 4 0 01-8 0zM5 5H3v2a3 3 0 003 3M19 5h2v2a3 3 0 01-3 3M12 13v4M8 21h8M9 17h6"/>'
   };
   function icon(n, cls) { return '<svg class="ic ' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (IC[n] || '') + '</svg>'; }
   function sportIcon(s, cls) { return icon(IC[s] ? s : 'run', cls); }
@@ -216,7 +277,8 @@
   }
   function go(path) { if (location.hash === '#/' + path) render(); else location.hash = '#/' + path; }
 
-  var DARK = { welcome: 1, trips: 1, trip: 1, passport: 1, confirmed: 1 };
+  var DARK = { welcome: 1, trips: 1, trip: 1, passport: 1, confirmed: 1, prefs: 1, tour: 1 };
+  var PUBLIC = { welcome: 1, collab: 1 };
   var TABS = [
     { id: 'explore', icon: 'compass', label: 'tab_explore' },
     { id: 'trips', icon: 'ticket', label: 'tab_trips' },
@@ -225,23 +287,25 @@
     { id: 'profile', icon: 'user', label: 'tab_profile' }
   ];
   var AFTER = {};
+  var BEFORE_LEAVE = null;
 
   function render() {
     if (!booted) { view.innerHTML = '<div class="splash">' + isotype('splash-iso') + '</div>'; document.body.classList.add('dark'); return; }
     var r = route();
-    if (!state.user && r.name !== 'welcome') { location.replace('#/welcome'); return; }
+    if (BEFORE_LEAVE) { BEFORE_LEAVE(); BEFORE_LEAVE = null; }
+    if (!state.user && !PUBLIC[r.name]) { location.replace('#/welcome'); return; }
     if (state.user && (r.name === '' || r.name === 'welcome')) { location.replace('#/explore'); return; }
-    var views = { welcome: vWelcome, explore: vExplore, activity: vActivity, book: vBook, confirmed: vConfirmed, trips: vTrips, trip: vTrip, passport: vPassport, community: vCommunity, profile: vProfile, stella: vStella };
+    var views = { welcome: vWelcome, prefs: vPrefs, explore: vExplore, activity: vActivity, book: vBook, confirmed: vConfirmed, trips: vTrips, trip: vTrip, passport: vPassport, community: vCommunity, profile: vProfile, stella: vStella, wall: vWall, tour: vTour, ambassador: vAmbassador, collab: vCollab };
     var fn = views[r.name] || vExplore;
     var dark = !!DARK[r.name];
     document.body.classList.toggle('dark', dark);
-    document.body.classList.toggle('chat-mode', r.name === 'stella');
+    document.body.classList.toggle('chat-mode', r.name === 'stella' || r.name === 'wall');
     var meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.setAttribute('content', dark ? '#591225' : '#FFFFFF');
     stampSeq = 0;
     view.innerHTML = fn(r.arg);
     view.className = 'view view-' + (r.name || 'explore');
     var isTab = TABS.some(function (x) { return x.id === r.name; });
-    renderTabs(isTab ? r.name : null);
+    renderTabs(isTab && state.user ? r.name : null);
     window.scrollTo(0, 0);
     if (AFTER[r.name]) AFTER[r.name](r.arg);
   }
@@ -260,13 +324,31 @@
     }).join('');
   }
 
-  /* ---------- Vistas ---------- */
+  /* ---------- Piezas comunes ---------- */
   function langSwitch() {
     return '<div class="seg seg-sm" role="group">' + ['es', 'en'].map(function (l) {
       return '<button type="button" class="' + (lang === l ? 'on' : '') + '" data-action="lang" data-v="' + l + '">' + l.toUpperCase() + '</button>';
     }).join('') + '</div>';
   }
+  function topbar() {
+    var lv = level();
+    return '<header class="topbar">' + lockup(true) +
+      '<button class="lvl-chip" data-action="go" data-href="passport">' + isotype('iso-xs') + lv.name + '</button></header>';
+  }
+  function subbar(title, back, dark) {
+    return '<header class="subbar' + (dark ? ' dark' : '') + '"><button class="icon-btn plain" data-action="' + (back ? 'go' : 'back') + '"' + (back ? ' data-href="' + back + '"' : '') + ' aria-label="' + t('back') + '">' + icon('back') + '</button><h2>' + esc(title) + '</h2><span class="sm-brand">' + isotype('iso-xs') + '</span></header>';
+  }
+  function logoImg(p) { return '<img src="' + p.logo + '" alt="' + esc(p.name) + '"' + (p.mono ? ' class="mono"' : '') + ' loading="lazy">'; }
+  function kindTag(a) { var k = D.kinds[a.kind]; return '<span class="tag kind-' + a.kind + '">' + icon(k.icon) + k.name + '</span>'; }
+  function marquee() {
+    var items = D.partners.map(function (p) { return '<button class="mq-item" data-action="partner" data-id="' + p.id + '" aria-label="' + esc(p.name) + '">' + logoImg(p) + '</button>'; }).join('');
+    return '<div class="marquee" aria-label="' + t('partners_title') + '"><div class="mq-track">' + items + items + '</div></div>';
+  }
+  function collabCta() {
+    return '<button class="collab-cta" data-action="go" data-href="collab">' + icon('handshake') + '<div><b>' + t('collab_cta_title') + '</b><span>' + t('collab_cta_sub') + '</span></div>' + icon('chev') + '</button>';
+  }
 
+  /* ---------- Bienvenida y cuenta ---------- */
   function vWelcome() {
     var reg = ui.authTab === 'register';
     return '<section class="welcome">' +
@@ -285,24 +367,38 @@
             (reg ? '<small class="hint-light">' + t('username_hint') + '</small>' : '') + '</label>' +
           '<label class="field"><span>' + t('password') + '</span><div class="pw"><input id="f-pass" type="' + (ui.showPw ? 'text' : 'password') + '" autocomplete="' + (reg ? 'new-password' : 'current-password') + '" placeholder="' + t('password_ph') + '" maxlength="72">' +
             '<button type="button" class="pw-toggle" data-action="toggle-pw">' + (ui.showPw ? t('hide') : t('show')) + '</button></div></label>' +
-          (reg ? '<div class="field"><span>' + t('fav_sport') + '</span><div class="seg seg-full">' +
-            ['run', 'padel', 'both'].map(function (s) { return '<button type="button" class="' + (ui.regSport === s ? 'on' : '') + '" data-action="reg-sport" data-v="' + s + '">' + t('sport_' + s) + '</button>'; }).join('') +
-          '</div></div>' : '') +
           '<label class="check"><input type="checkbox" id="f-remember"' + (remember() ? ' checked' : '') + '><i>' + icon('check') + '</i><span>' + t('remember_me') + '</span></label>' +
           (ui.authErr ? '<p class="form-err" role="alert">' + esc(ui.authErr) + '</p>' : '') +
           '<button type="submit" class="btn btn-light btn-block"' + (ui.authBusy ? ' disabled' : '') + '>' + (ui.authBusy ? '<span class="spinner sm"></span>' : '') + (reg ? t('create_account') : t('sign_in')) + (ui.authBusy ? '' : icon('chev')) + '</button>' +
           (reg ? '<p class="fine">' + icon('shield') + t('no_email_needed') + '</p>' : '') +
         '</form>' +
         '<button type="button" class="btn-link" data-action="demo"' + (ui.authBusy ? ' disabled' : '') + '>' + t('try_demo') + '</button>' +
+        '<button type="button" class="btn-link small-link" data-action="go" data-href="collab">' + icon('handshake') + t('collab_welcome') + '</button>' +
       '</div></section>';
   }
 
-  function topbar() {
-    var lv = level();
-    return '<header class="topbar">' + lockup(true) +
-      '<button class="lvl-chip" data-action="go" data-href="passport">' + isotype('iso-xs') + lv.name + '</button></header>';
+  /* Onboarding: qué espera el usuario de ACTIVE */
+  function vPrefs() {
+    if (!ui.prefsDraft) ui.prefsDraft = JSON.parse(JSON.stringify(state.prefs || { goals: [], sports: [] }));
+    var d = ui.prefsDraft;
+    return '<section class="prefs pad">' +
+      '<div class="welcome-top flat">' + lockup(true) + '</div>' +
+      '<p class="eyebrow">' + t('prefs_eyebrow', { name: esc(state.user.name) }) + '</p>' +
+      '<h1 class="display">' + t('prefs_title') + '</h1>' +
+      '<p class="lead">' + t('prefs_sub') + '</p>' +
+      '<div class="goal-grid">' + D.goals.map(function (g) {
+        var on = d.goals.indexOf(g.id) >= 0;
+        return '<button class="goal' + (on ? ' on' : '') + '" data-action="pref-goal" data-v="' + g.id + '">' + icon(g.icon) + '<span>' + esc(L(g.label)) + '</span><i>' + icon('check') + '</i></button>'; }).join('') + '</div>' +
+      '<h3 class="h-sec">' + t('prefs_sports') + '</h3><p class="muted small">' + t('prefs_sports_sub') + '</p>' +
+      '<div class="sport-chips">' + D.sports.map(function (s) {
+        var on = d.sports.indexOf(s.id) >= 0;
+        return '<button class="schip' + (on ? ' on' : '') + '" data-action="pref-sport" data-v="' + s.id + '">' + sportIcon(s.id) + esc(L(s.label)) + '</button>'; }).join('') + '</div>' +
+      '<button class="btn btn-light btn-block prefs-save" data-action="prefs-save">' + t('prefs_save') + icon('chev') + '</button>' +
+      '<button class="btn-link" data-action="prefs-skip">' + t('prefs_skip') + '</button>' +
+      '</section>';
   }
 
+  /* ---------- Explorar ---------- */
   function nextBookingCard() {
     var b = state.bookings.filter(function (x) { return x.status === 'upcoming'; })[0];
     if (!b) return '';
@@ -313,18 +409,15 @@
       '<div class="next-txt"><small>' + t('your_next') + '</small><b>' + esc(L(a.title)) + '</b><span>' + esc(L(c.name)) + ' · ' + fmtDate(addDays(b.checkIn, 1)) + '</span></div>' +
       icon('qr', 'next-qr') + '</button>';
   }
-
-  function tagFor(a) { var s = stampSport(a); return '<span class="tag">' + sportIcon(s) + sportLabel(s) + '</span>'; }
-
   function activityCard(a) {
     var c = city(a.city), left = a.spots - a.taken;
     return '<button class="act-card" data-action="go" data-href="activity/' + a.id + '">' +
-      '<div class="act-img" style="background-image:url(' + a.img + ')">' + tagFor(a) +
-      (c.pilot ? '<span class="tag tag-pilot">' + t('pilot') + '</span>' : '') + '</div>' +
+      '<div class="act-img" style="background-image:url(' + a.img + ')">' + kindTag(a) +
+      (c.pilot ? '<span class="tag tag-pilot">' + t('pilot') + '</span>' : '') + (a.exclusive ? '<span class="tag tag-excl">' + icon('crown') + t('exclusive') + '</span>' : '') + '</div>' +
       '<div class="act-body"><h3>' + esc(L(a.title)) + '</h3>' +
       '<p class="muted">' + icon('pin') + esc(L(c.name)) + ' · ' + esc(a.partner) + '</p>' +
-      '<div class="act-meta"><span>' + icon('clock') + esc(L(a.when)) + '</span><span class="price">' + (a.price ? money(a.price) : t('included')) + '</span></div>' +
-      '<div class="spots"><i style="width:' + Math.round(a.taken / a.spots * 100) + '%"></i></div><small class="muted">' + left + ' ' + t('spots_left') + '</small>' +
+      '<div class="act-meta"><span>' + sportIcon(a.sport) + esc(L(a.when)) + '</span><span class="price' + (priceFor(a).unlocked ? ' unlocked' : '') + '">' + priceLabel(a, true) + '</span></div>' +
+      (a.invite ? '' : '<div class="spots"><i style="width:' + Math.round(a.taken / a.spots * 100) + '%"></i></div><small class="muted">' + left + ' ' + t('spots_left') + '</small>') +
       '</div></button>';
   }
   function miniAct(a) {
@@ -332,23 +425,40 @@
     return '<button class="mini-act" data-action="go" data-href="activity/' + a.id + '"><div class="thumb" style="background-image:url(' + a.img + ')"></div>' +
       '<div><b>' + esc(L(a.title)) + '</b><span>' + esc(L(c.name)) + ' · ' + esc(L(a.when)) + '</span></div>' + icon('chev') + '</button>';
   }
+  function forYouCard(a) {
+    return '<button class="fy-card" data-action="go" data-href="activity/' + a.id + '" style="background-image:url(' + a.img + ')">' +
+      '<span class="fy-why">' + icon('star') + esc(reasonFor(a)) + '</span>' +
+      '<div><small>' + D.kinds[a.kind].name + ' · ' + esc(L(city(a.city).name)) + '</small><b>' + esc(L(a.title)) + '</b><span>' + priceLabel(a, true) + '</span></div></button>';
+  }
 
   function vExplore() {
     var list = D.activities.filter(function (a) {
       if (ui.city !== 'all' && a.city !== ui.city) return false;
-      if (ui.sport === 'event') return a.type === 'event';
-      if (ui.sport !== 'all') return a.sport === ui.sport && a.type !== 'event';
+      if (ui.kind !== 'all' && a.kind !== ui.kind) return false;
       return true;
     });
-    list.sort(function (a, b) { return (city(b.city).pilot ? 1 : 0) - (city(a.city).pilot ? 1 : 0); });
+    list.sort(function (a, b) { return score(b) - score(a); });
     var c = ui.city !== 'all' ? city(ui.city) : null;
+    var noPrefs = !state.prefs || !(state.prefs.goals || []).length;
     return topbar() +
       '<section class="pad">' +
         '<p class="hello">' + t('hello') + ', ' + esc(state.user.name) + '</p>' +
         '<h1 class="display dark-ink">' + t('explore_title') + '</h1>' +
         nextBookingCard() +
       '</section>' +
-      '<div class="chips" role="tablist">' +
+      '<section><div class="sec-head pad"><h3 class="h-sec">' + t('for_you') + '</h3>' + (noPrefs ? '<button class="link-btn" data-action="go" data-href="prefs">' + t('prefs_set') + '</button>' : '<button class="link-btn" data-action="go" data-href="prefs">' + t('edit') + '</button>') + '</div>' +
+        '<div class="fy-row">' + recommended(5).map(forYouCard).join('') + '</div></section>' +
+      '<section class="pad"><h3 class="h-sec">' + t('three_ways') + '</h3>' +
+        '<div class="kinds">' + ['local', 'race', 'tour'].map(function (k) {
+          var K = D.kinds[k];
+          return '<button class="kind-card kc-' + k + '" data-action="' + (k === 'tour' ? 'go' : 'kind') + '" data-href="tour" data-v="' + k + '">' +
+            '<div class="kc-top">' + icon(K.icon) + '<b>' + K.name + '</b><span>' + esc(L(K.tag)) + '</span></div>' +
+            '<p>' + esc(L(K.what)) + '</p><small>' + icon('user') + esc(L(K.who)) + '</small></button>'; }).join('') + '</div></section>' +
+      '<section class="pad"><h3 class="h-sec">' + t('partners_title') + '</h3></section>' + marquee() +
+      '<section class="pad" id="list-anchor"><h3 class="h-sec">' + t('activities') + '</h3>' +
+        '<div class="seg seg-full seg-light seg-scroll">' + ['all', 'local', 'race', 'tour'].map(function (k) {
+          return '<button class="' + (ui.kind === k ? 'on' : '') + '" data-action="kind" data-v="' + k + '">' + (k === 'all' ? t('filter_all') : D.kinds[k].name) + '</button>'; }).join('') + '</div></section>' +
+      '<div class="chips">' +
         '<button class="chip' + (ui.city === 'all' ? ' on' : '') + '" data-action="city" data-v="all">' + icon('globe') + t('all') + '</button>' +
         D.cities.map(function (x) { return '<button class="chip' + (ui.city === x.id ? ' on' : '') + '" data-action="city" data-v="' + x.id + '">' + esc(L(x.name)) + (x.pilot ? '<i class="dot"></i>' : '') + '</button>'; }).join('') +
       '</div>' +
@@ -357,70 +467,163 @@
         '<h2>' + esc(L(c.name)) + '</h2><p>' + icon('bed') + esc(c.hotel) + ' ' + '★'.repeat(c.stars) + '</p>' +
         '<p class="small">' + t('from_night') + ' <b>' + money(c.price) + '</b> / ' + t('night') + '</p></div></div></section>' : '') +
       '<section class="pad">' +
-        '<div class="seg seg-full seg-light seg-scroll">' + ['all', 'run', 'padel', 'gym', 'event'].map(function (s) {
-          return '<button class="' + (ui.sport === s ? 'on' : '') + '" data-action="sport" data-v="' + s + '">' + t('filter_' + s) + '</button>'; }).join('') + '</div>' +
+        (ui.kind !== 'all' ? '<p class="kind-note">' + icon('user') + esc(L(D.kinds[ui.kind].who)) + '</p>' : '') +
         '<div class="act-list">' + (list.length ? list.map(activityCard).join('') : '<p class="empty">' + t('no_results') + '</p>') + '</div>' +
+        collabCta() +
       '</section>';
   }
 
+  /* ---------- Detalle de actividad + gente que va ---------- */
   function vActivity(id) {
     var a = act(id); if (!a) return vExplore();
-    var c = city(a.city), p = a.partnerId ? partner(a.partnerId) : null;
+    var c = city(a.city), p = a.partnerId ? partner(a.partnerId) : null, K = D.kinds[a.kind], pr = priceFor(a);
     return '<section class="detail">' +
       '<div class="hero" style="background-image:url(' + a.img + ')">' +
         '<button class="icon-btn" data-action="back" aria-label="' + t('back') + '">' + icon('back') + '</button>' +
-        '<div class="hero-txt">' + tagFor(a) +
+        '<div class="hero-txt">' + kindTag(a) +
         '<h1 class="display">' + esc(L(a.title)) + '</h1><p>' + icon('pin') + esc(L(c.name)) + ' · ' + esc(c.hotel) + '</p></div>' +
       '</div>' +
       '<div class="pad">' +
+        '<div class="kind-box kb-' + a.kind + '"><b>' + icon(K.icon) + K.name + ' · ' + esc(L(K.tag)) + '</b><p>' + esc(L(K.what)) + '</p><small>' + icon('user') + esc(L(K.who)) + '</small>' +
+          (a.kind === 'tour' ? '<button class="link-btn light" data-action="go" data-href="tour">' + t('tour_see') + icon('chev') + '</button>' : '') + '</div>' +
         '<div class="info-grid">' +
           info('users', t('partner'), a.partner) + info('route', t('distance'), L(a.distance)) +
           info('clock', t('when'), L(a.when)) + info('gauge', t('level'), L(a.level)) +
         '</div>' +
-        (p ? '<button class="partner-strip" data-action="partner" data-id="' + p.id + '"><img src="' + p.logo + '" alt="' + esc(p.name) + '"><span>' + esc(L(p.tagline)) + '</span>' + icon('chev') + '</button>' : '') +
+        '<div class="price-box' + (pr.unlocked ? ' unlocked' : '') + '"><div><small>' + t('your_price') + '</small><b>' + priceLabel(a) + '</b>' +
+          (pr.unlocked ? '<s>' + money(pr.base) + '</s>' : '') + '</div>' +
+          (a.exclusive ? '<p>' + icon('crown') + t('exclusive_note') + '</p>' : '') +
+          (a.bibNote ? '<p>' + icon('info') + t('bib_note') + '</p>' : '') + '</div>' +
+        (p ? '<button class="partner-strip" data-action="partner" data-id="' + p.id + '">' + logoImg(p) + '<span>' + esc(L(p.tagline)) + '</span>' + icon('chev') + '</button>' : '') +
         '<p class="body-text">' + esc(L(a.desc)) + '</p>' +
+        (a.kind === 'race' ? '<h3 class="h-sec">' + t('race_plan') + '</h3><ul class="upsell-list">' + D.upsells.map(function (u) { var up = priceFor(u); return '<li>' + icon('check') + '<span>' + esc(L(u.title)) + '</span><b>' + (up.amount ? money(up.amount) : (up.unlocked ? t('free_for_level', { level: level().name }) : t('included'))) + '</b></li>'; }).join('') + '</ul><p class="direct-only">' + icon('shield') + t('direct_only') + '</p>' : '') +
         '<div class="card"><div class="row-ic">' + icon('pin') + '<div><small class="muted">' + t('meeting_point') + '</small><b>' + esc(L(a.meet)) + '</b></div></div></div>' +
-        '<h3 class="h-sec">' + t('whats_included') + '</h3>' +
-        '<ul class="checks">' + ['inc_1', 'inc_2', 'inc_3', 'inc_4'].map(function (k) { return '<li>' + icon('check') + t(k) + '</li>'; }).join('') + '</ul>' +
+        '<div id="social-preview" class="social"><h3 class="h-sec">' + t('who_goes') + '</h3><p class="muted small">' + t('loading') + '</p></div>' +
         '<div class="stamp-preview">' + stampSvg(a.city, stampSport(a), null, { cls: 'stamp-ink' }) + '<div><small class="muted">' + t('stamp_preview') + '</small><b>' + t('stamp_of') + ' ' + esc(L(c.name)) + '</b><span class="muted">Sport Passport</span></div></div>' +
       '</div>' +
-      '<div class="sticky-cta"><div><small class="muted">' + t('from_night') + '</small><b>' + money(c.price) + '</b><small class="muted"> / ' + t('night') + ' + ' + (a.price ? money(a.price) : t('included').toLowerCase()) + '</small></div>' +
-        '<button class="btn btn-primary" data-action="go" data-href="book/' + a.id + '">' + t('book_cta') + '</button></div>' +
+      '<div class="sticky-cta"><div><small class="muted">' + t('from_night') + '</small><b>' + money(c.price) + '</b><small class="muted"> / ' + t('night') + ' + ' + priceLabel(a, true).toLowerCase() + '</small></div>' +
+        (a.invite ? '<button class="btn btn-primary" disabled>' + t('invite_only') + '</button>' : '<button class="btn btn-primary" data-action="go" data-href="book/' + a.id + '">' + t('book_cta') + '</button>') + '</div>' +
       '</section>';
   }
   function info(ic, label, val) { return '<div class="info">' + icon(ic) + '<small>' + label + '</small><b>' + esc(val) + '</b></div>'; }
+  function eventMeta(id) { var a = act(id); if (a) return { title: L(a.title), base: a.taken }; var m = meetup(id); return m ? { title: L(m.title), base: m.going } : { title: id, base: 0 }; }
 
+  async function loadSocial(id) {
+    var at = await sb.from('event_attendees').select('user_id, display_name, username, created_at').eq('event_id', id).order('created_at', { ascending: true });
+    var ms = await sb.from('event_messages').select('id, user_id, display_name, body, created_at').eq('event_id', id).order('created_at', { ascending: true }).limit(100);
+    return { attendees: at.data || [], messages: ms.data || [], error: at.error || ms.error };
+  }
+  function avatars(list, extra) {
+    var shown = list.slice(0, 5);
+    return '<div class="faces big">' + shown.map(function (p, i) { return '<i style="z-index:' + (9 - i) + '" title="' + esc(p.display_name) + '">' + initials(p.display_name) + '</i>'; }).join('') +
+      '<span>' + t('people_going', { n: list.length + extra }) + '</span></div>';
+  }
+  function isAttending(soc) { return soc.attendees.some(function (p) { return p.user_id === state.user.id; }); }
+  AFTER.activity = async function (id) {
+    var box = document.getElementById('social-preview'); if (!box) return;
+    var soc = await loadSocial(id), meta = eventMeta(id);
+    if (!document.getElementById('social-preview')) return;
+    var last = soc.messages.slice(-2);
+    box.innerHTML = '<h3 class="h-sec">' + t('who_goes') + '</h3>' + avatars(soc.attendees, meta.base) +
+      (last.length ? '<div class="wall-peek">' + last.map(msgHtml).join('') + '</div>' : '<p class="muted small">' + t('wall_empty') + '</p>') +
+      '<div class="social-actions"><button class="btn btn-sm ' + (isAttending(soc) ? 'btn-ghost' : 'btn-primary') + '" data-action="attend" data-id="' + id + '">' + (isAttending(soc) ? icon('check') + t('attending') : t('attend')) + '</button>' +
+      '<button class="btn btn-sm btn-ghost" data-action="go" data-href="wall/' + id + '">' + icon('chat') + t('open_wall') + '</button></div>';
+  };
+
+  /* Muro del evento (tiempo real) */
+  function msgHtml(m) {
+    var mine = state.user && m.user_id === state.user.id;
+    return '<div class="wmsg' + (mine ? ' mine' : '') + '"><i>' + initials(m.display_name) + '</i><div><b>' + esc(m.display_name) + ' <small>' + timeAgo(m.created_at) + '</small></b><p>' + esc(m.body) + '</p></div></div>';
+  }
+  function vWall(id) {
+    var meta = eventMeta(id);
+    return '<header class="chat-head"><button class="icon-btn plain" data-action="back">' + icon('back') + '</button>' +
+      '<div class="chat-id"><div class="bot-av lg">' + icon('users') + '</div><div><b class="wall-title">' + esc(meta.title) + '</b><small>' + t('wall_sub') + '</small></div></div><span style="width:40px"></span></header>' +
+      '<div class="chat-log" id="wall-log"><p class="muted small center">' + t('loading') + '</p></div>' +
+      '<div class="chat-input"><form id="wall-form" class="chat-row" data-id="' + esc(id) + '"><textarea id="wall-text" rows="1" placeholder="' + t('wall_ph') + '" maxlength="500"></textarea>' +
+      '<button type="submit" class="send" aria-label="Enviar">' + icon('send') + '</button></form></div>';
+  }
+  AFTER.wall = async function (id) {
+    var soc = await loadSocial(id), meta = eventMeta(id);
+    ui.wall = { id: id, soc: soc };
+    drawWall(meta);
+    var ch = sb.channel('wall-' + id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_messages', filter: 'event_id=eq.' + id }, function (payload) {
+      if (!ui.wall || ui.wall.id !== id) return;
+      if (ui.wall.soc.messages.some(function (m) { return m.id === payload.new.id; })) return;
+      ui.wall.soc.messages.push(payload.new); drawWall(meta);
+    }).subscribe();
+    BEFORE_LEAVE = function () { sb.removeChannel(ch); ui.wall = null; };
+  };
+  function drawWall(meta) {
+    var log = document.getElementById('wall-log'); if (!log || !ui.wall) return;
+    var soc = ui.wall.soc;
+    log.innerHTML = '<div class="wall-top">' + avatars(soc.attendees, meta.base) +
+      '<button class="btn btn-sm ' + (isAttending(soc) ? 'btn-ghost' : 'btn-primary') + '" data-action="attend" data-id="' + ui.wall.id + '">' + (isAttending(soc) ? icon('check') + t('attending') : t('attend')) + '</button></div>' +
+      (soc.messages.length ? soc.messages.map(msgHtml).join('') : '<p class="muted small center">' + t('wall_empty') + '</p>') +
+      '<p class="ai-note">' + icon('info') + t('wall_note') + '</p>';
+    log.scrollTop = log.scrollHeight;
+  }
+  async function attendToggle(id) {
+    var soc = await loadSocial(id);
+    if (isAttending(soc)) await sb.from('event_attendees').delete().eq('event_id', id).eq('user_id', state.user.id);
+    else { await sb.from('event_attendees').insert({ event_id: id, user_id: state.user.id, display_name: state.user.name, username: state.user.username }); haptic(); toast(t('attend_toast')); }
+    var r = route();
+    if (r.name === 'wall') { ui.wall.soc = await loadSocial(id); drawWall(eventMeta(id)); }
+    else if (AFTER[r.name]) AFTER[r.name](r.arg);
+  }
+  async function ensureAttending(id) {
+    await sb.from('event_attendees').upsert({ event_id: id, user_id: state.user.id, display_name: state.user.name, username: state.user.username }, { onConflict: 'event_id,user_id', ignoreDuplicates: true });
+  }
+  async function postWall(id, text) {
+    text = (text || '').trim(); if (!text) return;
+    var r = await sb.from('event_messages').insert({ event_id: id, user_id: state.user.id, display_name: state.user.name, body: text.slice(0, 500) }).select().single();
+    if (r.error) { toast(t('err_generic')); return; }
+    if (ui.wall && ui.wall.id === id && !ui.wall.soc.messages.some(function (m) { return m.id === r.data.id; })) ui.wall.soc.messages.push(r.data);
+    var ta = document.getElementById('wall-text'); if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+    drawWall(eventMeta(id));
+  }
+
+  /* ---------- Reserva con fotos de habitación y extras ---------- */
   var ROOMS = { classic: 1, superior: 1.2, suite: 1.6 };
   function quote(a, f) {
     var c = city(a.city), night = Math.round(c.price * ROOMS[f.room]);
-    var stay = night * f.nights, activity = a.price * f.guests;
-    return { night: night, stay: stay, activity: activity, total: stay + activity };
+    var stay = night * f.nights, ap = priceFor(a).amount, activity = ap * f.guests;
+    var ups = (f.upsells || []).map(function (id) { var u = byId(D.upsells, id); return { id: id, title: L(u.title), amount: priceFor(u).amount }; });
+    var extras = ups.reduce(function (s, u) { return s + u.amount; }, 0);
+    return { night: night, stay: stay, activity: activity, ups: ups, extras: extras, total: stay + activity + extras };
   }
-
   function vBook(id) {
-    var a = act(id); if (!a) return vExplore();
+    var a = act(id); if (!a || a.invite) return vExplore();
     var c = city(a.city);
-    if (!ui.form || ui.form.activity !== id) ui.form = { activity: id, checkIn: nextFriday(), nights: 2, guests: 1, room: 'superior' };
-    var f = ui.form, q = quote(a, f);
-    return '<header class="subbar"><button class="icon-btn plain" data-action="back">' + icon('back') + '</button><h2>' + t('booking') + '</h2><span class="sm-brand">' + isotype('iso-xs') + '</span></header>' +
-      '<section class="pad book">' +
+    if (!ui.form || ui.form.activity !== id) ui.form = { activity: id, checkIn: a.month ? firstFriday(a.month) : nextFriday(), nights: 2, guests: 1, room: 'superior', upsells: a.kind === 'race' ? ['shakeout', 'breakfast'] : [], photo: 0 };
+    var f = ui.form, q = quote(a, f), photos = c.rooms[f.room];
+    return subbar(t('booking')) +
+      '<section class="book">' +
+        '<div class="room-gallery" id="room-gallery">' + photos.map(function (src) { return '<img src="' + src + '" alt="' + esc(c.hotel + ' · ' + t('room_' + f.room)) + '" loading="lazy">'; }).join('') +
+          '<span class="rg-label">' + icon('bed') + esc(t('room_' + f.room)) + ' · ' + photos.length + ' ' + t('photos') + '</span></div>' +
+        '<p class="photo-credit pad">' + t('photo_credit') + '</p>' +
+        '<div class="pad">' +
         '<div class="book-head"><div class="thumb" style="background-image:url(' + a.img + ')"></div><div><b>' + esc(L(a.title)) + '</b><span class="muted">' + esc(c.hotel) + '</span><span class="muted">' + esc(L(a.when)) + '</span></div></div>' +
-        '<h3 class="h-sec">' + t('step_dates') + '</h3>' +
+        '<h3 class="h-sec">' + t('step_dates') + '</h3>' + (a.month ? '<p class="kind-note">' + icon('cal') + t('event_dates_note', { when: esc(L(a.when)) }) + '</p>' : '') +
+        '<div class="field light"><span>' + icon('bed') + t('room') + '</span><div class="rooms">' + Object.keys(ROOMS).map(function (r) {
+          return '<button class="room' + (f.room === r ? ' on' : '') + '" data-action="room" data-v="' + r + '"><img src="' + c.rooms[r][0] + '" alt=""><b>' + t('room_' + r) + '</b><small>' + money(Math.round(c.price * ROOMS[r])) + '</small></button>'; }).join('') + '</div></div>' +
         '<label class="field light"><span>' + icon('cal') + t('check_in') + '</span><input type="date" id="f-checkin" value="' + f.checkIn + '" min="' + new Date().toISOString().slice(0, 10) + '"></label>' +
         '<div class="steppers">' + stepper('nights', t('n_nights'), f.nights, 1, 7) + stepper('guests', t('guests'), f.guests, 1, 4) + '</div>' +
-        '<div class="field light"><span>' + icon('bed') + t('room') + '</span><div class="rooms">' + Object.keys(ROOMS).map(function (r) {
-          return '<button class="room' + (f.room === r ? ' on' : '') + '" data-action="room" data-v="' + r + '"><b>' + t('room_' + r) + '</b><small>' + money(Math.round(c.price * ROOMS[r])) + '</small></button>'; }).join('') + '</div></div>' +
-        '<div class="card incl"><div class="row-ic">' + sportIcon(a.sport) + '<div><small class="muted">' + t('activity_spot') + '</small><b>' + esc(L(a.title)) + '</b></div></div><span class="ok">' + icon('check') + '</span></div>' +
+        '<div class="card incl"><div class="row-ic">' + sportIcon(a.sport) + '<div><small class="muted">' + t('activity_spot') + '</small><b>' + esc(L(a.title)) + '</b><span class="muted small">' + priceLabel(a) + '</span></div></div><span class="ok">' + icon('check') + '</span></div>' +
+        (a.kind === 'race' ? '<h3 class="h-sec">' + t('race_extras') + '</h3><p class="muted small">' + t('race_extras_sub') + '</p><div class="upsells">' + D.upsells.map(function (u) {
+          var on = f.upsells.indexOf(u.id) >= 0, up = priceFor(u);
+          return '<button class="upsell' + (on ? ' on' : '') + '" data-action="upsell" data-v="' + u.id + '"><i>' + icon('check') + '</i><span>' + esc(L(u.title)) + '</span><b>' + (up.amount ? '+' + money(up.amount) : (up.unlocked ? t('free_for_level', { level: level().name }) : t('included'))) + '</b></button>'; }).join('') + '</div>' : '') +
         '<h3 class="h-sec">' + t('summary') + '</h3>' +
         '<div class="summary">' +
           '<div><span>' + t('stay') + ' · ' + f.nights + ' ' + (f.nights > 1 ? t('nights') : t('night')) + ' · ' + t('room_' + f.room) + '</span><b>' + money(q.stay) + '</b></div>' +
-          '<div><span>' + t('activity') + ' × ' + f.guests + '</span><b>' + (q.activity ? money(q.activity) : t('included')) + '</b></div>' +
+          '<div><span>' + t('activity') + ' × ' + f.guests + '</span><b>' + (q.activity ? money(q.activity) : (priceFor(a).unlocked ? t('free_for_level', { level: level().name }) : t('included'))) + '</b></div>' +
+          q.ups.map(function (u) { return '<div class="ups-line"><span>' + esc(u.title) + '</span><b>' + (u.amount ? money(u.amount) : t('included')) + '</b></div>'; }).join('') +
           '<div class="perk"><span>' + icon('coffee') + t('direct_perk') + '<small>' + t('direct_perk_desc') + '</small></span><b>' + t('included') + '</b></div>' +
           '<div class="total"><span>' + t('total') + '</span><b>' + money(q.total) + '</b></div>' +
           '<small class="muted">' + t('taxes') + '</small>' +
         '</div>' +
         '<p class="secure">' + icon('shield') + t('direct_channel') + '</p>' +
-      '</section>' +
+      '</div></section>' +
       '<div class="sticky-cta"><div><small class="muted">' + t('total') + '</small><b>' + money(q.total) + '</b></div><button class="btn btn-primary" data-action="confirm">' + t('confirm_pay') + '</button></div>';
   }
   function stepper(key, label, val, min, max) {
@@ -439,10 +642,12 @@
         '<div class="dcard-row"><span>' + esc(L(a.title)) + '</span><span>' + money(b.total) + '</span></div></div>' +
       '<p class="note">' + icon('star') + t('star_traveler') + '</p>' +
       '<button class="btn btn-light btn-block" data-action="go" data-href="trip/' + b.id + '">' + icon('qr') + t('go_pass') + '</button>' +
-      '<button class="btn btn-outline-light btn-block" data-action="pdf" data-id="' + b.id + '">' + icon('download') + t('pdf_download') + '</button>' +
+      '<button class="btn btn-outline-light btn-block" data-action="pdf" data-id="' + b.id + '">' + icon('eye') + t('pdf_preview') + '</button>' +
+      '<button class="btn btn-outline-light btn-block" data-action="go" data-href="wall/' + a.id + '">' + icon('chat') + t('meet_people') + '</button>' +
       '</section>';
   }
 
+  /* ---------- Mi viaje y pase ---------- */
   function vTrips() {
     var up = state.bookings.filter(function (b) { return b.status === 'upcoming' && act(b.activity); });
     var done = state.bookings.filter(function (b) { return b.status === 'completed' && act(b.activity); });
@@ -463,11 +668,11 @@
   function vTrip(id) {
     var b = booking(id); if (!b || !act(b.activity)) return vTrips();
     var a = act(b.activity), c = city(b.city), actDate = addDays(b.checkIn, 1), done = b.status === 'completed';
-    var dist = L(a.distance).split(' / ')[0]; if (/^(Día completo|Full day)$/.test(dist)) dist = '24H';
+    var dist = L(a.distance).split(' / ')[0].split(' + ')[0]; if (/^(Día completo|Full day)$/.test(dist)) dist = '24H';
     return '<header class="subbar dark"><button class="icon-btn plain" data-action="go" data-href="trips">' + icon('back') + '</button><h2>' + t('active_pass') + '</h2><span></span></header>' +
       '<section class="pad">' +
       '<article class="pass' + (done ? ' is-done' : '') + '">' +
-        '<div class="pass-top">' + lockup(true) + '<span class="pass-lbl">' + t('active_pass') + '</span></div>' +
+        '<div class="pass-top">' + lockup(true) + '<span class="pass-lbl">' + D.kinds[a.kind].name.toUpperCase() + '</span></div>' +
         '<div class="pass-route"><div><small>' + t('hotel') + '</small><b>' + c.code + '</b><span>' + esc(L(c.name)) + '</span></div>' +
           '<div class="pass-line">' + sportIcon(a.sport) + '</div>' +
           '<div class="r"><small>' + t('activity') + '</small><b>' + esc(dist) + '</b><span>' + sportLabel(a.sport) + '</span></div></div>' +
@@ -478,12 +683,14 @@
           '<div><small>' + t('date') + '</small><b>' + fmtDate(actDate) + '</b></div>' +
           '<div><small>' + t('when') + '</small><b>' + esc(L(a.when).split('·').pop().trim()) + '</b></div>' +
           '<div class="wide"><small>' + t('meeting_point') + '</small><b>' + esc(L(a.meet)) + '</b></div>' +
+          ((b.upsells || []).length ? '<div class="wide"><small>' + t('race_extras') + '</small><b>' + b.upsells.map(function (u) { return esc(L(byId(D.upsells, u).title)); }).join(' · ') + '</b></div>' : '') +
         '</div>' +
         '<div class="perf"></div>' +
         '<div class="pass-qr">' + (done ? '<div class="qr-done">' + stampSvg(b.city, stampSport(a), actDate, { cls: 'stamp-ink' }) + '</div>' : qrSvg(b.id)) +
           '<div class="pass-code"><small>' + t('code') + '</small><b class="mono">' + b.id + '</b></div></div>' +
       '</article>' +
-      '<button class="btn btn-outline-light btn-block pass-pdf" data-action="pdf" data-id="' + b.id + '">' + icon('download') + t('pdf_download') + '</button>' +
+      '<div class="pass-actions"><button class="btn btn-outline-light" data-action="pdf" data-id="' + b.id + '">' + icon('eye') + t('pdf_short') + '</button>' +
+        '<button class="btn btn-outline-light" data-action="go" data-href="wall/' + a.id + '">' + icon('chat') + t('meet_short') + '</button></div>' +
       (done ? '<div class="done-banner">' + icon('check') + '<div><b>' + t('validated') + '</b><span>' + t('stamp_won') + ' · ' + esc(L(c.name)) + '</span></div></div>' + suggestNext(b.city) :
         '<ol class="steps">' +
           '<li class="' + (b.checkedIn ? 'ok' : 'cur') + '"><i>' + (b.checkedIn ? icon('check') : '1') + '</i><div><b>' + t('step1') + '</b><p>' + t('step1_desc') + '</p>' +
@@ -494,15 +701,15 @@
         '</ol>') +
       '</section>';
   }
-
   function suggestNext(fromCity) {
     var have = {}; state.stamps.forEach(function (s) { have[s.city] = 1; });
-    var a = D.activities.filter(function (x) { return !have[x.city] && x.city !== fromCity && x.type === 'tour'; })[0];
+    var a = recommended(20).filter(function (x) { return !have[x.city] && x.city !== fromCity && x.kind === 'local'; })[0];
     if (!a) return '';
     var c = city(a.city);
     return '<h3 class="h-sec">' + t('next_city') + '</h3><button class="suggest" data-action="go" data-href="activity/' + a.id + '" style="background-image:url(' + a.img + ')"><div><small>' + t('next_city_sub') + '</small><b>' + esc(L(c.name)) + '</b><span>' + esc(L(a.title)) + '</span></div>' + icon('chev') + '</button>';
   }
 
+  /* ---------- Pasaporte ---------- */
   function vPassport() {
     var st = stats(), li = levelIndex(st), lv = D.levels[li], nx = D.levels[li + 1];
     var pct, nextTxt;
@@ -524,6 +731,7 @@
         '<p class="pp-next">' + esc(nextTxt) + '</p>' +
       '</div>' +
       '<div class="pp-stats"><div><b>' + st.count + '</b><span>' + t('activities_done') + '</span></div><div><b>' + st.count + '</b><span>' + t('stamps') + '</span></div><div><b>' + st.cities + '/' + D.cities.length + '</b><span>' + t('cities_done') + '</span></div></div>' +
+      '<button class="tour-strip" data-action="go" data-href="tour">' + icon('trophy') + '<div><b>ACTIVE Tour ' + D.tour.season + '</b><span>' + t('tour_strip') + '</span></div>' + icon('chev') + '</button>' +
       '<h3 class="h-sec">' + t('my_stamps') + '</h3>' +
       '<div class="pp-page"><div class="stamp-grid">' +
         state.stamps.map(function (s) { return '<div class="slot' + (s.fresh ? ' fresh' : '') + '">' + stampSvg(s.city, s.sport, s.date, { cls: 'stamp-ink' }) + '<small>' + fmtDate(s.date, { day: 'numeric', month: 'short', year: '2-digit' }) + '</small></div>'; }).join('') +
@@ -534,15 +742,89 @@
         var un = i <= li;
         return '<div class="lv' + (un ? ' un' : '') + (i === li ? ' cur' : '') + '"><div class="lv-head"><b>' + x.name + '</b><span>' + esc(L(x.req)) + '</span>' + (un ? '<i class="lv-ok">' + icon('check') + '</i>' : '<i class="lv-lock">' + icon('lock') + '</i>') + '</div>' +
           '<ul>' + L(x.perks).map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>' +
+      '<button class="amb-strip" data-action="go" data-href="ambassador">' + icon('crown') + '<div><b>' + t('amb_title') + '</b><span>' + t('amb_strip') + '</span></div>' + icon('chev') + '</button>' +
       '<div class="st-note">' + icon('star') + '<div><b>' + t('st_title') + '</b><p>' + t('st_desc') + '</p></div></div>' +
       '</section>';
   }
 
-  /* --- Comunidad + Partners --- */
+  /* ---------- ACTIVE Tour ---------- */
+  function vTour() {
+    var stops = D.activities.filter(function (a) { return a.kind === 'tour'; });
+    var done = state.stamps.filter(function (s) { return /^tour-/.test(s.activity || ''); }).map(function (s) { return s.activity; });
+    var booked = state.bookings.filter(function (b) { return /^tour-/.test(b.activity); }).map(function (b) { return b.activity; });
+    var qual = stops.filter(function (s) { return !s.final; });
+    var pts = done.length * D.tour.points.stop;
+    var rank = D.tour.ranking.concat([{ name: state.user.name + ' (' + t('you') + ')', city: '', pts: pts, me: true }]).sort(function (a, b) { return b.pts - a.pts; });
+    return subbar('ACTIVE Tour', null, true) +
+      '<section class="pad tour">' +
+        '<div class="tour-hero">' + isotype('pp-iso') + '<small>' + t('tour_season', { y: D.tour.season }) + '</small><h1 class="display">ACTIVE Tour</h1><p>' + esc(L(D.kinds.tour.what)) + '</p>' +
+          '<div class="tour-prog"><div><b>' + done.length + '/' + qual.length + '</b><span>' + t('tour_stops_done') + '</span></div><div><b>' + pts + '</b><span>' + t('points') + '</span></div><div><b>#' + (rank.findIndex(function (r) { return r.me; }) + 1) + '</b><span>' + t('ranking') + '</span></div></div></div>' +
+        '<p class="inspired">' + icon('info') + t('tour_inspired') + '</p>' +
+        '<h3 class="h-sec">' + t('tour_calendar') + '</h3>' +
+        '<ol class="tour-stops">' + stops.map(function (s) {
+          var st = done.indexOf(s.id) >= 0 ? 'done' : booked.indexOf(s.id) >= 0 ? 'booked' : s.final ? 'final' : 'open';
+          return '<li class="ts-' + st + '"><i>' + (st === 'done' ? icon('check') : s.final ? icon('trophy') : s.stop) + '</i><button data-action="go" data-href="activity/' + s.id + '"><b>' + esc(L(city(s.city).name)) + (s.final ? ' · Master Final' : '') + '</b><span>' + esc(L(s.when)) + ' · ' + esc(L(s.distance)) + '</span>' +
+            '<em>' + (st === 'done' ? t('ts_done') : st === 'booked' ? t('ts_booked') : s.final ? t('invite_only') : priceLabel(s, true)) + '</em></button></li>'; }).join('') + '</ol>' +
+        '<h3 class="h-sec">' + t('tour_rewards') + '</h3><ul class="checks light">' + L(D.tour.rewards).map(function (r) { return '<li>' + icon('trophy') + esc(r) + '</li>'; }).join('') + '</ul>' +
+        '<h3 class="h-sec">' + t('ranking') + '</h3><div class="rank">' + rank.map(function (r, i) {
+          return '<div class="rk' + (r.me ? ' me' : '') + (i < 3 ? ' top' : '') + '"><span>' + (i + 1) + '</span><b>' + esc(r.name) + '</b><small>' + esc(r.city) + '</small><em>' + r.pts + ' pts</em></div>'; }).join('') + '</div>' +
+        '<button class="btn btn-light btn-block" data-action="go" data-href="activity/' + (stops.filter(function (s) { return !s.final && done.indexOf(s.id) < 0; })[0] || stops[0]).id + '">' + t('tour_join') + '</button>' +
+      '</section>';
+  }
+
+  /* ---------- Programa Embajador ---------- */
+  function vAmbassador() {
+    var st = stats(), need = Math.max(0, 10 - st.count);
+    return subbar(t('amb_title')) +
+      '<section class="pad amb">' +
+        '<div class="amb-hero">' + icon('crown') + '<h1 class="display dark-ink">' + t('amb_h1') + '</h1><p class="muted">' + t('amb_sub') + '</p></div>' +
+        '<h3 class="h-sec">' + t('amb_benefits') + '</h3><ul class="checks">' + t('amb_benefits_list').split('|').map(function (b) { return '<li>' + icon('check') + esc(b) + '</li>'; }).join('') + '</ul>' +
+        '<h3 class="h-sec">' + t('amb_how') + '</h3>' +
+        '<div class="card"><b>' + t('amb_route1') + '</b><p class="muted small">' + t('amb_route1_d') + '</p><div class="spots"><i style="width:' + Math.min(100, st.count * 10) + '%"></i></div><small class="muted">' + (need ? t('amb_need', { n: need }) : t('amb_reached')) + '</small></div>' +
+        '<div class="card"><b>' + t('amb_route2') + '</b><p class="muted small">' + t('amb_route2_d') + '</p></div>' +
+        '<h3 class="h-sec">' + t('amb_form_title') + '</h3>' +
+        (ui.ambSent ? '<div class="sent">' + icon('check') + '<b>' + t('amb_sent') + '</b></div>' :
+        '<form id="amb-form" class="form-light">' +
+          '<label class="field light"><span>' + t('amb_event_name') + '</span><input id="a-title" required maxlength="80" placeholder="' + t('amb_event_ph') + '"></label>' +
+          '<div class="two"><label class="field light"><span>' + t('city') + '</span><select id="a-city">' + D.cities.map(function (c) { return '<option value="' + c.id + '">' + esc(L(c.name)) + '</option>'; }).join('') + '</select></label>' +
+          '<label class="field light"><span>' + t('sport') + '</span><select id="a-sport">' + D.sports.map(function (s) { return '<option value="' + s.id + '">' + esc(L(s.label)) + '</option>'; }).join('') + '</select></label></div>' +
+          '<label class="field light"><span>' + t('contact') + '</span><input id="a-contact" maxlength="120" placeholder="' + t('contact_ph') + '"></label>' +
+          '<label class="field light"><span>' + t('amb_event_desc') + '</span><textarea id="a-desc" rows="3" maxlength="1000" placeholder="' + t('amb_event_desc_ph') + '"></textarea></label>' +
+          '<button type="submit" class="btn btn-primary btn-block">' + t('amb_send') + '</button></form>') +
+      '</section>';
+  }
+
+  /* ---------- Colabora con ACTIVE ---------- */
+  var COLLAB_KINDS = ['sponsor', 'organizer', 'event', 'club', 'brand', 'ambassador', 'other'];
+  function vCollab() {
+    return subbar(t('collab_title'), state.user ? null : 'welcome') +
+      '<section class="pad collab">' +
+        '<div class="amb-hero">' + icon('handshake') + '<h1 class="display dark-ink">' + t('collab_h1') + '</h1><p class="muted">' + t('collab_sub') + '</p></div>' +
+        '<div class="collab-grid">' + t('collab_ways').split('|').map(function (w) { var p = w.split('::'); return '<div><b>' + esc(p[0]) + '</b><span>' + esc(p[1]) + '</span></div>'; }).join('') + '</div>' +
+        (ui.collabSent ? '<div class="sent">' + icon('check') + '<b>' + t('collab_sent') + '</b><p class="muted small">' + t('collab_sent_sub') + '</p></div>' :
+        '<form id="collab-form" class="form-light">' +
+          '<div class="field light"><span>' + t('collab_kind') + '</span><div class="sport-chips">' + COLLAB_KINDS.map(function (k) {
+            return '<button type="button" class="schip' + (ui.collabKind === k ? ' on' : '') + '" data-action="collab-kind" data-v="' + k + '">' + t('ck_' + k) + '</button>'; }).join('') + '</div></div>' +
+          '<div class="two"><label class="field light"><span>' + t('your_name') + '</span><input id="c-name" required maxlength="80" value="' + esc(state.user ? state.user.name : '') + '"></label>' +
+          '<label class="field light"><span>' + t('company') + '</span><input id="c-company" maxlength="80" placeholder="' + t('optional') + '"></label></div>' +
+          '<label class="field light"><span>' + t('contact') + '</span><input id="c-contact" required maxlength="120" placeholder="' + t('contact_ph') + '"></label>' +
+          '<label class="field light"><span>' + t('city') + '</span><select id="c-city"><option value="">' + t('any_city') + '</option>' + D.cities.map(function (c) { return '<option value="' + c.id + '">' + esc(L(c.name)) + '</option>'; }).join('') + '</select></label>' +
+          '<label class="field light"><span>' + t('collab_msg') + '</span><textarea id="c-msg" required rows="4" maxlength="1500" placeholder="' + t('collab_msg_ph') + '"></textarea></label>' +
+          '<p class="muted small">' + t('collab_privacy') + '</p>' +
+          '<button type="submit" class="btn btn-primary btn-block">' + t('collab_send') + '</button></form>') +
+      '</section>';
+  }
+  async function submitCollab(kind, fields) {
+    var row = { kind: kind, name: fields.name, company: fields.company || null, contact: fields.contact, city: fields.city || null, message: fields.message, user_id: state.user ? state.user.id : null };
+    var r = await sb.from('collab_requests').insert(row);
+    return !r.error;
+  }
+
+  /* ---------- Comunidad + Partners ---------- */
   function partnerCard(p) {
     var acts = D.activities.filter(function (a) { return a.partnerId === p.id; });
     return '<article class="partner" id="p-' + p.id + '">' +
-      '<div class="partner-logo"><img src="' + p.logo + '" alt="' + esc(p.name) + '"></div>' +
+      '<div class="partner-logo">' + logoImg(p) + '</div>' +
       '<div class="partner-body">' +
         '<small class="eyebrow-ink">' + sportIcon(p.sport) + esc(L(p.tagline)) + '</small>' +
         '<h3>' + esc(p.name) + '</h3><p class="muted">' + esc(L(p.desc)) + '</p>' +
@@ -552,26 +834,25 @@
         '<div class="partner-foot"><a class="btn btn-ghost btn-sm" href="' + p.url + '" target="_blank" rel="noopener">' + t('visit_web') + icon('ext') + '</a><small class="muted">' + t('sample_deal') + '</small></div>' +
       '</div></article>';
   }
-
   function vCommunity() {
     var segs = '<div class="seg seg-full seg-light comm-seg">' + ['meetups', 'partners'].map(function (s) {
       return '<button class="' + (ui.commTab === s ? 'on' : '') + '" data-action="ctab" data-v="' + s + '">' + t('seg_' + s) + '</button>'; }).join('') + '</div>';
     if (ui.commTab === 'partners') {
       return topbar() + '<section class="pad"><h1 class="display dark-ink">' + t('community_title') + '</h1>' + segs +
-        '<h2 class="h-sec">' + t('partners_title') + '</h2><p class="muted">' + t('partners_sub') + '</p>' +
-        D.partners.map(partnerCard).join('') + '</section>';
+        '<h2 class="h-sec">' + t('partners_title') + '</h2><p class="muted">' + t('partners_sub') + '</p></section>' + marquee() +
+        '<section class="pad">' + D.partners.map(partnerCard).join('') + collabCta() + '</section>';
     }
     var list = D.meetups.filter(function (m) { return ui.commCity === 'all' || m.city === ui.commCity; });
     var mine = D.meetups.filter(function (m) { return state.joined.indexOf(m.id) >= 0; });
     var cities = D.cities.filter(function (c) { return D.meetups.some(function (m) { return m.city === c.id; }); });
-    var clubs = {}; D.activities.forEach(function (a) { if (!a.partnerId) clubs[a.partner] = a.city; });
     function card(m) {
       var j = state.joined.indexOf(m.id) >= 0, c = city(m.city), n = m.going + (j ? 1 : 0);
       var faces = ['LM', 'JP', 'AC', 'MR', 'SK'].slice(0, Math.min(4, n));
       return '<div class="meet"><div class="meet-ic">' + sportIcon(m.sport) + '</div><div class="meet-body">' +
         '<small class="muted">' + esc(L(c.name)) + ' · ' + esc(L(m.when)) + '</small><b>' + esc(L(m.title)) + '</b><span class="muted">' + esc(m.club) + ' · ' + esc(L(m.from)) + '</span>' +
         '<div class="meet-foot"><div class="faces">' + faces.map(function (f, i) { return '<i style="z-index:' + (5 - i) + '">' + (j && i === 0 ? initials(state.user.name) : f) + '</i>'; }).join('') + '<span>' + n + ' ' + t('going') + '</span></div>' +
-        '<button class="btn btn-sm ' + (j ? 'btn-ghost' : 'btn-primary') + '" data-action="join" data-id="' + m.id + '">' + (j ? icon('check') + t('joined') : t('join')) + '</button></div></div></div>';
+        '<div class="meet-btns"><button class="icon-btn small" data-action="go" data-href="wall/' + m.id + '" aria-label="' + t('open_wall') + '">' + icon('chat') + '</button>' +
+        '<button class="btn btn-sm ' + (j ? 'btn-ghost' : 'btn-primary') + '" data-action="join" data-id="' + m.id + '">' + (j ? icon('check') + t('joined') : t('join')) + '</button></div></div></div></div>';
     }
     return topbar() +
       '<section class="pad"><h1 class="display dark-ink">' + t('community_title') + '</h1>' + segs + '<p class="muted">' + t('community_sub') + '</p>' +
@@ -580,9 +861,7 @@
         cities.map(function (c) { return '<button class="chip' + (ui.commCity === c.id ? ' on' : '') + '" data-action="ccity" data-v="' + c.id + '">' + esc(L(c.name)) + '</button>'; }).join('') + '</div>' +
       '<section class="pad">' +
         (mine.length && ui.commCity === 'all' ? '<h3 class="h-sec">' + t('my_meetups') + '</h3>' + mine.map(card).join('') + '<h3 class="h-sec">' + t('all') + '</h3>' + list.filter(function (m) { return mine.indexOf(m) < 0; }).map(card).join('') : list.map(card).join('')) +
-        '<h3 class="h-sec">' + t('clubs') + '</h3><div class="clubs">' +
-          D.partners.map(function (p) { return '<button class="club-logo" data-action="partner" data-id="' + p.id + '"><img src="' + p.logo + '" alt="' + esc(p.name) + '"></button>'; }).join('') +
-          Object.keys(clubs).map(function (k) { return '<span>' + esc(k) + '<small>' + esc(L(city(clubs[k]).name)) + '</small></span>'; }).join('') + '</div>' +
+        '<button class="amb-strip light" data-action="go" data-href="ambassador">' + icon('crown') + '<div><b>' + t('amb_title') + '</b><span>' + t('amb_strip2') + '</span></div>' + icon('chev') + '</button>' +
       '</section>';
   }
   AFTER.community = function () {
@@ -591,9 +870,9 @@
     if (el) { var y = el.getBoundingClientRect().top + window.scrollY - 12; window.scrollTo(0, y); }
   };
 
-  /* --- Perfil: beneficios, Star Traveler, panel del equipo --- */
+  /* ---------- Perfil ---------- */
   function vProfile() {
-    var u = state.user, li = levelIndex(), lv = D.levels[li];
+    var u = state.user, li = levelIndex(), lv = D.levels[li], p = state.prefs || { goals: [], sports: [] };
     var perks = [];
     D.levels.forEach(function (x, i) { if (i <= li) perks = perks.concat(L(x.perks)); });
     return topbar() +
@@ -603,18 +882,24 @@
 
         '<h3 class="h-sec">' + t('my_benefits') + '</h3>' +
         '<div class="benefits">' +
-          '<div class="ben-block"><small>' + icon('star') + t('benefits_level') + ' · ' + lv.name + '</small><ul class="checks">' + perks.map(function (p) { return '<li>' + icon('check') + esc(p) + '</li>'; }).join('') + '</ul></div>' +
-          '<div class="ben-block"><small>' + icon('gift') + t('benefits_partners') + '</small>' + D.partners.map(function (p) {
-            return '<button class="ben-partner" data-action="partner" data-id="' + p.id + '"><img src="' + p.logo + '" alt="' + esc(p.name) + '"><span>' + esc(L(p.perks)[0]) + '</span>' + icon('chev') + '</button>'; }).join('') + '</div>' +
+          '<div class="ben-block"><small>' + icon('star') + t('benefits_level') + ' · ' + lv.name + '</small><ul class="checks">' + perks.map(function (x) { return '<li>' + icon('check') + esc(x) + '</li>'; }).join('') + '</ul></div>' +
+          '<div class="ben-block"><small>' + icon('gift') + t('benefits_partners') + '</small>' + D.partners.slice(0, 4).map(function (pa) {
+            return '<button class="ben-partner" data-action="partner" data-id="' + pa.id + '">' + logoImg(pa) + '<span>' + esc(L(pa.perks)[0]) + '</span>' + icon('chev') + '</button>'; }).join('') + '</div>' +
         '</div>' +
         '<a class="st-card" href="' + CFG.starTravelerUrl + '" target="_blank" rel="noopener">' +
           '<div class="st-top">' + icon('star') + '<b>' + t('st_card_title') + '</b><span>Eurostars Hotel Company</span></div>' +
           '<p>' + t('st_card_desc') + '</p><span class="st-cta">' + t('st_card_cta') + icon('ext') + '</span></a>' +
 
+        '<h3 class="h-sec">' + t('my_prefs') + '</h3>' +
+        '<div class="ben-block prefs-sum"><div class="sport-chips">' + (p.goals.length ? p.goals.map(function (g) { var go = byId(D.goals, g); return go ? '<span class="schip on static">' + icon(go.icon) + esc(L(go.label)) + '</span>' : ''; }).join('') : '<span class="muted small">' + t('prefs_none') + '</span>') + '</div>' +
+          '<div class="sport-chips">' + p.sports.map(function (s) { return '<span class="schip static">' + sportIcon(s) + esc(sportLabel(s)) + '</span>'; }).join('') + '</div>' +
+          '<button class="btn btn-ghost btn-sm" data-action="go" data-href="prefs">' + t('edit') + '</button></div>' +
+
         '<div class="list">' +
+          '<button class="li li-btn" data-action="go" data-href="ambassador"><span>' + icon('crown') + t('amb_title') + '</span>' + icon('chev') + '</button>' +
+          '<button class="li li-btn" data-action="go" data-href="collab"><span>' + icon('handshake') + t('collab_title') + '</span>' + icon('chev') + '</button>' +
+          '<button class="li li-btn" data-action="go" data-href="tour"><span>' + icon('trophy') + 'ACTIVE Tour ' + D.tour.season + '</span>' + icon('chev') + '</button>' +
           '<div class="li"><span>' + icon('globe') + t('language') + '</span>' + langSwitch() + '</div>' +
-          '<div class="li"><span>' + sportIcon(u.sport === 'padel' ? 'padel' : 'run') + t('sport') + '</span><div class="seg seg-sm">' + ['run', 'padel', 'both'].map(function (s) {
-            return '<button class="' + (u.sport === s ? 'on' : '') + '" data-action="usport" data-v="' + s + '">' + t('sport_' + s) + '</button>'; }).join('') + '</div></div>' +
           '<div class="li"><span>' + icon('phone') + t('install_tip') + '</span></div>' +
         '</div>' +
 
@@ -628,6 +913,7 @@
         (u.isAdmin ? '<h3 class="h-sec">' + t('team_panel') + '</h3><div class="admin" id="admin-panel">' +
           '<div class="card"><b>' + icon('upload') + ' ' + t('kb_title') + '</b><p class="muted small" id="kb-meta">' + t('loading') + '</p>' +
           '<label class="btn btn-primary btn-sm upload-btn">' + icon('upload') + '<span id="kb-label">' + t('kb_upload') + '</span><input type="file" id="kb-file" accept="application/pdf" hidden></label></div>' +
+          '<div class="card"><b>' + icon('handshake') + ' ' + t('collab_requests') + '</b><div id="adm-collab" class="adm-list muted small">' + t('loading') + '</div></div>' +
           '<div class="card"><b>' + icon('bulb') + ' ' + t('proposals') + '</b><div id="adm-proposals" class="adm-list muted small">' + t('loading') + '</div></div>' +
           '<div class="card"><b>' + icon('users') + ' ' + t('recent_questions') + '</b><div id="adm-chats" class="adm-list muted small">' + t('loading') + '</div></div>' +
         '</div>' : '') +
@@ -636,7 +922,6 @@
         '<div class="about">' + lockup() + '<p>' + t('about_text') + '</p><p><b>' + t('team') + ':</b> Joan Mas · Joel Puche · Luca Bertuzzi · Alex Piquer · Pol Tristany</p><p class="muted small">' + t('credits') + '</p><p class="muted small">Grupo Hotusa · Talent Match · 2026</p></div>' +
       '</section>';
   }
-
   AFTER.profile = async function () {
     if (!state.user.isAdmin) return;
     try {
@@ -644,6 +929,10 @@
       var ls = await sb.storage.from('knowledge').list('', { search: 'stella.pdf' });
       var f = ls.data && ls.data.filter(function (x) { return x.name === 'stella.pdf'; })[0];
       if (meta) meta.textContent = f ? t('kb_updated') + ': ' + new Date(f.updated_at || f.created_at).toLocaleString(lang === 'en' ? 'en-GB' : 'es-ES') + ' · ' + Math.round(((f.metadata && f.metadata.size) || 0) / 1024) + ' KB' : '—';
+      var co = await sb.from('collab_requests').select('kind, name, company, contact, city, message, created_at').order('created_at', { ascending: false }).limit(20);
+      var ce0 = document.getElementById('adm-collab');
+      if (ce0) ce0.innerHTML = co.data && co.data.length ? co.data.map(function (c) {
+        return '<div class="adm-item"><b>' + esc(t('ck_' + c.kind)) + ' · ' + esc(c.name) + (c.company ? ' (' + esc(c.company) + ')' : '') + '</b><span>' + esc(c.message) + '</span><span>' + esc(c.contact) + ' · ' + (c.city ? esc(L(city(c.city) ? city(c.city).name : c.city)) + ' · ' : '') + new Date(c.created_at).toLocaleDateString() + '</span></div>'; }).join('') : t('no_proposals');
       var pr = await sb.from('proposals').select('username, city, sport, idea, created_at').order('created_at', { ascending: false }).limit(15);
       var pe = document.getElementById('adm-proposals');
       if (pe) pe.innerHTML = pr.data && pr.data.length ? pr.data.map(function (p) {
@@ -654,7 +943,7 @@
     } catch (e) { console.warn(e); }
   };
 
-  /* --- Stella (chat IA) --- */
+  /* ---------- Stella (chat IA) ---------- */
   function mdLite(s) {
     var acts = [];
     var out = esc(String(s).replace(/`([^`]+)`/g, '$1')).replace(/\[\[act:([a-z0-9-]+)\]\]/g, function (_, id) { if (act(id) && acts.indexOf(id) < 0) acts.push(id); return ''; });
@@ -698,9 +987,13 @@
   AFTER.stella = function () { var log = document.getElementById('chat-log'); if (log) log.scrollTop = log.scrollHeight; };
 
   function chatContext() {
-    var st = stats();
+    var st = stats(), p = state.prefs || { goals: [], sports: [] };
     return {
-      lang: lang, contact: CFG.ownerEmail, name: state.user.name, sport: state.user.sport, level: level().name, count: st.count,
+      lang: lang, contact: CFG.ownerEmail, name: state.user.name, level: level().name, count: st.count,
+      sport: (p.sports.map(sportLabel).join(', ') || '—') + ' · Objetivos con ACTIVE: ' + (p.goals.map(function (g) { var go = byId(D.goals, g); return go ? L(go.label) : g; }).join(', ') || '—'),
+      goals: p.goals.map(function (g) { var go = byId(D.goals, g); return go ? L(go.label) : g; }),
+      prices: D.activities.filter(function (a) { return a.freeFrom; }).map(function (a) { return L(a.title) + ': ' + (priceFor(a).unlocked ? 'GRATIS para su nivel' : a.price + ' € para su nivel (gratis desde ' + levelName(a.freeFrom) + ')'); })
+        .concat(D.upsells.filter(function (u) { return u.freeFrom; }).map(function (u) { return L(u.title) + ' (Race Weekend): ' + (priceFor(u).unlocked ? 'GRATIS para su nivel' : u.price + ' € para su nivel (gratis desde ' + levelName(u.freeFrom) + ')'); })),
       cities: st.cityList.map(function (c) { return L(city(c).name); }),
       upcoming: state.bookings.filter(function (b) { return b.status === 'upcoming' && act(b.activity); }).map(function (b) { return L(act(b.activity).title) + ' (' + L(city(b.city).name) + ', check-in ' + fmtDate(b.checkIn, { weekday: 'long', day: 'numeric', month: 'long' }) + ', actividad ' + fmtDate(addDays(b.checkIn, 1), { weekday: 'long', day: 'numeric', month: 'long' }) + ')'; })
     };
@@ -743,9 +1036,9 @@
   function haptic() { if (navigator.vibrate) navigator.vibrate(30); }
 
   /* ---------- Cuentas ---------- */
-  function authError(code) {
+  function authError(c) {
     var map = { invalid_username: 'err_invalid_username', weak_password: 'err_weak_password', username_taken: 'err_username_taken', bad_credentials: 'err_bad_credentials', network: 'err_network' };
-    return t(map[code] || 'err_generic');
+    return t(map[c] || 'err_generic');
   }
   async function signIn(username, password) {
     var r;
@@ -770,15 +1063,15 @@
         try {
           resp = await fetch(CFG.supabaseUrl + '/functions/v1/signup', {
             method: 'POST', headers: { 'Content-Type': 'application/json', apikey: CFG.supabaseKey },
-            body: JSON.stringify({ username: username, password: password, name: name, sport: ui.regSport, state: { since: new Date().toISOString().slice(0, 10) } })
+            body: JSON.stringify({ username: username, password: password, name: name, sport: 'both', state: { since: new Date().toISOString().slice(0, 10), prefs: { goals: [], sports: [] } } })
           });
         } catch (e) { throw new Error('network'); }
         var data = await resp.json().catch(function () { return {}; });
         if (!resp.ok) throw new Error(data.error || 'generic');
       }
       await signIn(username, password);
-      ui.authBusy = false; ui.showPw = false;
-      go('explore');
+      ui.authBusy = false; ui.showPw = false; ui.prefsDraft = null;
+      go(reg ? 'prefs' : 'explore');
     } catch (e) {
       ui.authBusy = false; ui.authErr = authError(e.message); keepForm();
     }
@@ -798,13 +1091,13 @@
     try {
       await signIn(CFG.demoUser.username, CFG.demoUser.password);
       applyDemoData();
-      ui.authBusy = false; ui.city = 'all'; ui.sport = 'all';
+      ui.authBusy = false; ui.city = 'all'; ui.kind = 'all';
       go('explore');
     } catch (e) { ui.authBusy = false; ui.authErr = authError(e.message === 'bad_credentials' ? 'generic' : e.message); keepForm(); }
   }
   function applyDemoData() {
     var d = D.demoState();
-    state.stamps = d.stamps; state.bookings = d.bookings; state.joined = d.joined;
+    state.stamps = d.stamps; state.bookings = d.bookings; state.joined = d.joined; state.prefs = d.prefs;
     state.user.since = d.user.since;
     save();
   }
@@ -819,12 +1112,12 @@
     var f = ui.form, a = act(f.activity), q = quote(a, f);
     showOverlay('<div class="spinner"></div><p>' + t('processing') + '</p>', 'ov-plain');
     setTimeout(function () {
-      var b = { id: code(), activity: a.id, city: a.city, checkIn: f.checkIn, nights: f.nights, guests: f.guests, room: f.room, total: q.total, status: 'upcoming', checkedIn: false, created: new Date().toISOString() };
+      var b = { id: code(), activity: a.id, city: a.city, checkIn: f.checkIn, nights: f.nights, guests: f.guests, room: f.room, upsells: f.upsells.slice(), total: q.total, status: 'upcoming', checkedIn: false, created: new Date().toISOString() };
       state.bookings.unshift(b); save(); ui.form = null; hideOverlay(); haptic();
+      ensureAttending(a.id);
       go('confirmed/' + b.id);
     }, 1400);
   }
-
   function validate(id) {
     var b = booking(id); if (!b || !b.checkedIn) return;
     var a = act(b.activity), c = city(b.city), before = levelIndex();
@@ -840,14 +1133,12 @@
         '<button class="btn btn-light btn-block" data-action="after-stamp" data-up="' + (after > before ? after : '') + '" data-id="' + b.id + '">' + t('great') + '</button>', 'ov-dark');
     }, 1700);
   }
-
   function showLevelUp(i) {
     var lv = D.levels[i];
     showOverlay('<div class="burst">' + isotype('burst-iso') + '</div><small class="eyebrow">' + t('level_up') + '</small><h2 class="display lvl-big">' + lv.name + '</h2>' +
       '<p class="muted-light">' + t('new_perks') + '</p><ul class="checks light">' + L(lv.perks).map(function (p) { return '<li>' + icon('check') + esc(p) + '</li>'; }).join('') + '</ul>' +
       '<button class="btn btn-light btn-block" data-action="to-passport">' + t('see_passport') + '</button>', 'ov-dark');
   }
-
   async function uploadKb(file) {
     var label = document.getElementById('kb-label');
     if (!file || file.type !== 'application/pdf') { toast(t('kb_error')); return; }
@@ -857,51 +1148,46 @@
     rerenderKeepScroll();
   }
 
-
-  /* ---------- PDF de reserva brandeado (jsPDF, se carga solo cuando hace falta) ---------- */
-  var jspdfLoading;
-  function loadJsPdf() {
-    if (window.jspdf) return Promise.resolve(window.jspdf);
-    if (!jspdfLoading) jspdfLoading = new Promise(function (res, rej) {
-      var sc = document.createElement('script');
-      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-      sc.onload = function () { res(window.jspdf); }; sc.onerror = function () { jspdfLoading = null; rej(new Error('load')); };
+  /* ---------- PDF de reserva (jsPDF) con vista previa (pdf.js) ---------- */
+  var libs = {};
+  function loadScript(key, src, test) {
+    if (test()) return Promise.resolve();
+    if (!libs[key]) libs[key] = new Promise(function (res, rej) {
+      var sc = document.createElement('script'); sc.src = src;
+      sc.onload = function () { res(); }; sc.onerror = function () { libs[key] = null; rej(new Error('load')); };
       document.head.appendChild(sc);
     });
-    return jspdfLoading;
+    return libs[key];
   }
   function logoPng(color, px) {
-    var c = document.createElement('canvas'); c.width = c.height = px || 400;
+    var c = document.createElement('canvas'); c.width = c.height = px || 300;
     var ctx = c.getContext('2d'); ctx.scale(c.width / 100, c.height / 100);
     ctx.fillStyle = color; ctx.fill(new Path2D(LOGO_PATH), 'evenodd');
     return c.toDataURL('image/png');
   }
-  async function bookingPdf(id) {
-    var b = booking(id); if (!b) return;
+  async function buildBookingPdf(b) {
+    await loadScript('jspdf', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function () { return !!window.jspdf; });
     var a = act(b.activity), c = city(b.city), actDate = addDays(b.checkIn, 1), q = quote(a, b);
-    toast(t('pdf_preparing'));
-    var lib;
-    try { lib = await loadJsPdf(); } catch (e) { toast(t('err_network')); return; }
-    var doc = new lib.jsPDF({ unit: 'mm', format: 'a4' });
+    var doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
     var BUR = [89, 18, 37], CLA = [61, 11, 24], POR = [232, 235, 237], INK = [42, 9, 17], MUT = [111, 90, 96];
-    var W = 210, M = 16;
-    var long = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    var W = 210, M = 16, logoW = logoPng('#FFFFFF', 300);
+    var longD = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
     function txt(s, x, y, o) { doc.text(Array.isArray(s) ? s : String(s), x, y, o || {}); }
     function font(style, size, col) { doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor.apply(doc, col || INK); }
     function label(s, x, y) { font('bold', 7.5, MUT); doc.setCharSpace(0.6); txt(s.toUpperCase(), x, y); doc.setCharSpace(0); }
+    function money2(n) { return n.toLocaleString('es-ES') + ' EUR'; }
 
-    // Cabecera burdeos
     doc.setFillColor.apply(doc, BUR); doc.rect(0, 0, W, 66, 'F');
-    doc.addImage(logoPng('#FFFFFF', 300), 'PNG', M - 2, 10, 26, 26, 'logoW', 'FAST');
+    doc.addImage(logoW, 'PNG', M - 2, 10, 26, 26, 'logoW', 'FAST');
     font('bold', 22, [255, 255, 255]); doc.setCharSpace(1.2); txt('ACTIVE', M + 27, 22); doc.setCharSpace(2.2); font('bold', 8, [255, 255, 255]); txt('BY EUROSTARS', M + 27.5, 28.5); doc.setCharSpace(0);
     font('normal', 8.5, [255, 255, 255]); txt('Travel further. Play together.', W - M, 18, { align: 'right' });
+    font('bold', 8, [255, 255, 255]); txt(D.kinds[a.kind].name.toUpperCase(), W - M, 24, { align: 'right' });
     font('bold', 9, [255, 255, 255]); doc.setCharSpace(1); txt(t('pdf_title').toUpperCase(), M, 48); doc.setCharSpace(0);
     font('bold', 26, [255, 255, 255]); doc.setCharSpace(1.5); txt(b.id, M, 59); doc.setCharSpace(0);
     var status = b.status === 'completed' ? t('validated') : t('pdf_confirmed');
     font('bold', 8.5, BUR); var sw = doc.getTextWidth(status) + 10;
     doc.setFillColor(255, 255, 255); doc.roundedRect(W - M - sw, 51, sw, 9, 4.5, 4.5, 'F'); txt(status, W - M - sw / 2, 57, { align: 'center' });
 
-    // Columna izquierda: datos
     var y = 80, LX = M, colW = 112;
     function row(lbl, val, sub) {
       label(lbl, LX, y); font('bold', 11, INK);
@@ -914,12 +1200,11 @@
     row(t('pdf_member'), state.user.name + '  ·  @' + state.user.username, t('level') + ': ' + level().name);
     section(t('stay'));
     row(t('hotel'), c.hotel + ' ' + '*'.repeat(c.stars), L(c.name) + ', ' + L(c.country));
-    row(t('pdf_dates'), fmtDate(b.checkIn, long) + '  -  ' + fmtDate(addDays(b.checkIn, b.nights), long), b.nights + ' ' + (b.nights > 1 ? t('nights') : t('night')) + ' · ' + b.guests + ' ' + (b.guests > 1 ? t('guests') : t('guest')).toLowerCase() + ' · ' + t('room_' + b.room));
+    row(t('pdf_dates'), fmtDate(b.checkIn, longD) + '  -  ' + fmtDate(addDays(b.checkIn, b.nights), longD), b.nights + ' ' + (b.nights > 1 ? t('nights') : t('night')) + ' · ' + b.guests + ' ' + (b.guests > 1 ? t('guests') : t('guest')).toLowerCase() + ' · ' + t('room_' + b.room));
     section(t('activity'));
-    row(L(a.title), a.partner, fmtDate(actDate, long) + ' · ' + L(a.when) + ' · ' + L(a.distance));
+    row(L(a.title), a.partner, fmtDate(actDate, longD) + ' · ' + L(a.when) + ' · ' + L(a.distance));
     row(t('meeting_point'), L(a.meet));
 
-    // Columna derecha: QR
     var qx = 140, qy = 78, qs = 54;
     doc.setFillColor.apply(doc, POR); doc.roundedRect(qx - 4, qy - 4, qs + 8, qs + 30, 4, 4, 'F');
     doc.setFillColor(255, 255, 255); doc.rect(qx, qy, qs, qs, 'F');
@@ -929,44 +1214,72 @@
     font('bold', 13, CLA); txt(b.id, qx + qs / 2, qy + qs + 15, { align: 'center' });
     font('normal', 7.5, MUT); txt(doc.splitTextToSize(t('pdf_show_qr'), qs), qx + qs / 2, qy + qs + 20.5, { align: 'center' });
 
-    // Resumen económico
     y = Math.max(y, 178) + 2;
-    doc.setFillColor.apply(doc, POR); doc.roundedRect(M, y, W - 2 * M, 44, 4, 4, 'F');
+    var lines = [[t('stay') + ' · ' + b.nights + ' ' + (b.nights > 1 ? t('nights') : t('night')) + ' · ' + t('room_' + b.room), money2(q.stay)],
+      [t('activity') + ' x ' + b.guests, q.activity ? money2(q.activity) : t('included')]];
+    q.ups.forEach(function (u) { lines.push([u.title, u.amount ? money2(u.amount) : t('included')]); });
+    lines.push([t('direct_perk') + ' (' + t('direct_perk_desc').toLowerCase() + ')', t('included')]);
+    var boxH = 14 + lines.length * 7 + 10;
+    doc.setFillColor.apply(doc, POR); doc.roundedRect(M, y, W - 2 * M, boxH, 4, 4, 'F');
     var yy = y + 10;
-    function money2(n) { return n.toLocaleString('es-ES') + ' EUR'; }
-    function line(l, v, bold) { font(bold ? 'bold' : 'normal', bold ? 12 : 10, bold ? BUR : INK); txt(l, M + 8, yy); txt(v, W - M - 8, yy, { align: 'right' }); yy += 8; }
-    line(t('stay') + ' · ' + b.nights + ' ' + (b.nights > 1 ? t('nights') : t('night')) + ' · ' + t('room_' + b.room), money2(q.stay));
-    line(t('activity') + ' x ' + b.guests, q.activity ? money2(q.activity) : t('included'));
-    line(t('direct_perk') + ' (' + t('direct_perk_desc').toLowerCase() + ')', t('included'));
-    doc.setDrawColor(200, 190, 194); doc.setLineWidth(0.3); doc.line(M + 8, yy - 4.5, W - M - 8, yy - 4.5);
-    line(t('total'), money2(b.total), true);
-    y += 52;
+    lines.forEach(function (l) { font('normal', 9.5, INK); txt(doc.splitTextToSize(l[0], 140)[0], M + 8, yy); txt(l[1], W - M - 8, yy, { align: 'right' }); yy += 7; });
+    doc.setDrawColor(200, 190, 194); doc.setLineWidth(0.3); doc.line(M + 8, yy - 3.5, W - M - 8, yy - 3.5);
+    font('bold', 12, BUR); txt(t('total'), M + 8, yy + 3); txt(money2(b.total), W - M - 8, yy + 3, { align: 'right' });
+    y += boxH + 8;
 
-    // Ventajas del nivel
     var perks = []; D.levels.forEach(function (x, i) { if (i <= levelIndex()) perks = perks.concat(L(x.perks)); });
-    font('bold', 10, BUR); doc.setCharSpace(0.8); txt((t('pdf_perks') + ' · ' + level().name).toUpperCase(), M, y); doc.setCharSpace(0); y += 6;
-    font('normal', 9.5, INK);
-    perks.slice(0, 6).forEach(function (p, i) { var cx = i % 2 ? W / 2 + 2 : M, cy = y + Math.floor(i / 2) * 6; doc.setFillColor.apply(doc, BUR); doc.circle(cx + 1.2, cy - 1.2, 0.9, 'F'); txt(p, cx + 4, cy); });
-    y += Math.ceil(Math.min(perks.length, 6) / 2) * 6 + 4;
-    font('normal', 9, MUT); txt(doc.splitTextToSize(t('star_traveler') + '. ' + t('taxes') + '.', W - 2 * M), M, y);
+    if (y < 250) {
+      font('bold', 10, BUR); doc.setCharSpace(0.8); txt((t('pdf_perks') + ' · ' + level().name).toUpperCase(), M, y); doc.setCharSpace(0); y += 6;
+      font('normal', 9, INK);
+      perks.slice(0, 4).forEach(function (p, i) { var cx = i % 2 ? W / 2 + 2 : M, cy = y + Math.floor(i / 2) * 6; doc.setFillColor.apply(doc, BUR); doc.circle(cx + 1.2, cy - 1.2, 0.9, 'F'); txt(doc.splitTextToSize(p, 85)[0], cx + 4, cy); });
+      y += 14;
+    }
+    if (a.kind === 'race' && y < 262) { font('normal', 8.5, MUT); txt(doc.splitTextToSize(t('direct_only') + '. ' + t('bib_note'), W - 2 * M), M, y); }
 
-    // Pie
     doc.setFillColor.apply(doc, CLA); doc.rect(0, 272, W, 25, 'F');
-    doc.addImage(logoPng('#FFFFFF', 300), 'PNG', M - 1, 276.5, 13, 13, 'logoW', 'FAST');
+    doc.addImage(logoW, 'PNG', M - 1, 276.5, 13, 13, 'logoW', 'FAST');
     font('bold', 9, [255, 255, 255]); doc.setCharSpace(1); txt('TRAVEL FURTHER. PLAY TOGETHER.', M + 15, 282); doc.setCharSpace(0);
     font('normal', 7.5, [230, 210, 215]); txt(t('direct_channel') + ' · ' + new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'es-ES'), M + 15, 287);
     txt(t('pdf_disclaimer'), W - M, 287, { align: 'right' });
-
-    var name = 'ACTIVE-' + b.id + '.pdf';
-    var blob = doc.output('blob');
-    var file = new File([blob], name, { type: 'application/pdf' });
-    if ('ontouchstart' in window && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: 'ACTIVE · ' + b.id }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    return doc;
+  }
+  var pdfState = null;
+  async function previewPdf(id) {
+    var b = booking(id); if (!b) return;
+    showOverlay('<div class="spinner"></div><p>' + t('pdf_preparing') + '</p>', 'ov-plain');
+    try {
+      var doc = await buildBookingPdf(b);
+      var blob = doc.output('blob');
+      pdfState = { doc: doc, blob: blob, name: 'ACTIVE-' + b.id + '.pdf', id: b.id };
+      await loadScript('pdfjs', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', function () { return !!window.pdfjsLib; });
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      var pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+      var page = await pdf.getPage(1);
+      var cssW = Math.min(window.innerWidth - 48, 460), vp0 = page.getViewport({ scale: 1 }), scale = cssW / vp0.width, dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      var vp = page.getViewport({ scale: scale * dpr });
+      var canvas = document.createElement('canvas'); canvas.width = vp.width; canvas.height = vp.height; canvas.style.width = cssW + 'px';
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      overlay.className = 'overlay ov-pdf';
+      overlay.innerHTML = '<div class="pdf-sheet"><div class="pdf-head"><b>' + icon('eye') + t('pdf_preview_title') + '</b><button class="icon-btn plain" data-action="pdf-close" aria-label="' + t('close') + '">' + icon('x') + '</button></div>' +
+        '<div class="pdf-canvas"></div>' +
+        '<div class="pdf-actions"><button class="btn btn-ghost" data-action="pdf-close">' + t('close') + '</button><button class="btn btn-primary" data-action="pdf-save">' + icon('download') + t('pdf_save') + '</button></div></div>';
+      overlay.querySelector('.pdf-canvas').appendChild(canvas);
+      overlay.hidden = false; requestAnimationFrame(function () { overlay.classList.add('in'); });
+    } catch (e) {
+      console.warn(e); hideOverlay(); toast(t('err_network'));
     }
-    doc.save(name);
+  }
+  async function savePdf() {
+    if (!pdfState) return;
+    var file = new File([pdfState.blob], pdfState.name, { type: 'application/pdf' });
+    if ('ontouchstart' in window && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'ACTIVE · ' + pdfState.id }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    pdfState.doc.save(pdfState.name);
   }
 
   /* ---------- Eventos ---------- */
+  function toggleIn(arr, v) { var i = arr.indexOf(v); if (i >= 0) arr.splice(i, 1); else arr.push(v); }
   document.addEventListener('click', function (e) {
     var el = e.target.closest('[data-action]'); if (!el || el.disabled) return;
     var a = el.getAttribute('data-action'), v = el.getAttribute('data-v');
@@ -976,10 +1289,13 @@
       case 'lang': setLang(v); break;
       case 'auth-tab': ui.authTab = v; ui.authErr = ''; keepForm(); break;
       case 'toggle-pw': ui.showPw = !ui.showPw; keepForm(); break;
-      case 'reg-sport': ui.regSport = v; keepForm(); break;
       case 'demo': demoLogin(); break;
+      case 'pref-goal': toggleIn(ui.prefsDraft.goals, v); rerenderKeepScroll(); break;
+      case 'pref-sport': toggleIn(ui.prefsDraft.sports, v); rerenderKeepScroll(); break;
+      case 'prefs-save': state.prefs = ui.prefsDraft; ui.prefsDraft = null; save(); toast(t('prefs_saved')); go('explore'); break;
+      case 'prefs-skip': ui.prefsDraft = null; go('explore'); break;
       case 'city': ui.city = v; render(); break;
-      case 'sport': ui.sport = v; render(); break;
+      case 'kind': ui.kind = v; var y0 = document.getElementById('list-anchor'); var top = y0 ? y0.getBoundingClientRect().top + window.scrollY - 8 : 0; render(); window.scrollTo(0, top); break;
       case 'ccity': ui.commCity = v; render(); break;
       case 'ctab': ui.commTab = v; render(); break;
       case 'partner': ui.commTab = 'partners'; ui.focusPartner = el.getAttribute('data-id'); go('community'); break;
@@ -987,6 +1303,7 @@
         var k = el.getAttribute('data-k'), d = +el.getAttribute('data-d');
         ui.form[k] = Math.max(1, Math.min(k === 'nights' ? 7 : 4, ui.form[k] + d)); rerenderKeepScroll(); break;
       case 'room': ui.form.room = v; rerenderKeepScroll(); break;
+      case 'upsell': toggleIn(ui.form.upsells, v); rerenderKeepScroll(); break;
       case 'confirm': confirmBooking(); break;
       case 'checkin': var b = booking(el.getAttribute('data-id')); b.checkedIn = true; save(); haptic(); rerenderKeepScroll(); break;
       case 'validate': validate(el.getAttribute('data-id')); break;
@@ -997,32 +1314,57 @@
       case 'to-passport': hideOverlay(); go('passport'); break;
       case 'join':
         var id = el.getAttribute('data-id'), ix = state.joined.indexOf(id);
-        if (ix >= 0) { state.joined.splice(ix, 1); toast(t('left_toast')); } else { state.joined.push(id); toast(t('joined_toast')); haptic(); }
+        if (ix >= 0) { state.joined.splice(ix, 1); toast(t('left_toast')); } else { state.joined.push(id); toast(t('joined_toast')); haptic(); ensureAttending(id); }
         save(); rerenderKeepScroll(); break;
-      case 'usport': state.user.sport = v; save(); rerenderKeepScroll(); break;
+      case 'attend': attendToggle(el.getAttribute('data-id')); break;
+      case 'collab-kind': ui.collabKind = v; var cv = {}; ['c-name', 'c-company', 'c-contact', 'c-city', 'c-msg'].forEach(function (i) { var x = document.getElementById(i); if (x) cv[i] = x.value; }); rerenderKeepScroll(); Object.keys(cv).forEach(function (i) { var x = document.getElementById(i); if (x) x.value = cv[i]; }); break;
       case 'demo-data': applyDemoData(); go('explore'); break;
       case 'reset':
         if (confirm(t('reset_progress_confirm'))) { state.stamps = []; state.bookings = []; state.joined = []; save(); go('explore'); }
         break;
       case 'logout': if (confirm(t('logout_confirm'))) logout(); break;
       case 'ask': sendChat(el.getAttribute('data-q')); break;
-      case 'pdf': bookingPdf(el.getAttribute('data-id')); break;
+      case 'pdf': previewPdf(el.getAttribute('data-id')); break;
+      case 'pdf-save': savePdf(); break;
+      case 'pdf-close': hideOverlay(); break;
       case 'chat-clear': chat = []; saveChat(); render(); break;
     }
   });
-  document.addEventListener('submit', function (e) {
-    if (e.target.id === 'auth-form') { e.preventDefault(); submitAuth(); }
-    if (e.target.id === 'chat-form') { e.preventDefault(); var ta = document.getElementById('chat-text'); sendChat(ta.value); }
+  document.addEventListener('submit', async function (e) {
+    var f = e.target;
+    if (f.id === 'auth-form') { e.preventDefault(); submitAuth(); }
+    if (f.id === 'chat-form') { e.preventDefault(); sendChat(document.getElementById('chat-text').value); }
+    if (f.id === 'wall-form') { e.preventDefault(); postWall(f.getAttribute('data-id'), document.getElementById('wall-text').value); }
+    if (f.id === 'collab-form') {
+      e.preventDefault();
+      var v = function (i) { return (document.getElementById(i).value || '').trim(); };
+      if (!v('c-name') || v('c-contact').length < 3 || !v('c-msg')) { toast(t('form_missing')); return; }
+      f.querySelector('button[type=submit]').disabled = true;
+      var ok = await submitCollab(ui.collabKind, { name: v('c-name'), company: v('c-company'), contact: v('c-contact'), city: v('c-city'), message: v('c-msg') });
+      if (ok) { ui.collabSent = true; rerenderKeepScroll(); } else { toast(t('err_generic')); f.querySelector('button[type=submit]').disabled = false; }
+    }
+    if (f.id === 'amb-form') {
+      e.preventDefault();
+      var g = function (i) { return (document.getElementById(i).value || '').trim(); };
+      if (!g('a-title') || !g('a-desc')) { toast(t('form_missing')); return; }
+      f.querySelector('button[type=submit]').disabled = true;
+      var msg = '[' + g('a-sport') + '] ' + g('a-title') + ' — ' + g('a-desc') + ' (' + t('level') + ': ' + level().name + ', ' + stats().count + ' ' + t('activities_done') + ')';
+      var ok2 = await submitCollab('ambassador', { name: state.user.name + ' (@' + state.user.username + ')', company: null, contact: g('a-contact') || '@' + state.user.username + ' (app)', city: g('a-city'), message: msg });
+      if (ok2) { ui.ambSent = true; rerenderKeepScroll(); } else { toast(t('err_generic')); f.querySelector('button[type=submit]').disabled = false; }
+    }
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'f-checkin' && ui.form && e.target.value) { ui.form.checkIn = e.target.value; rerenderKeepScroll(); }
     if (e.target.id === 'kb-file') uploadKb(e.target.files[0]);
   });
   document.addEventListener('input', function (e) {
-    if (e.target.id === 'chat-text') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }
+    if (e.target.id === 'chat-text' || e.target.id === 'wall-text') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }
   });
   document.addEventListener('keydown', function (e) {
-    if (e.target.id === 'chat-text' && e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); sendChat(e.target.value); }
+    if ((e.target.id === 'chat-text' || e.target.id === 'wall-text') && e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) {
+      e.preventDefault();
+      if (e.target.id === 'chat-text') sendChat(e.target.value); else postWall(e.target.form.getAttribute('data-id'), e.target.value);
+    }
   });
   function rerenderKeepScroll() { var y = window.scrollY; render(); window.scrollTo(0, y); }
 
