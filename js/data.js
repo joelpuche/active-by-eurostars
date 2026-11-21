@@ -46,6 +46,7 @@ window.ACTIVE_DATA = (function () {
     { id: 'gym', img: 'img/fit1.jpg', label: { es: 'Gym & HYROX', en: 'Gym & HYROX' } },
     { id: 'tennis', img: 'img/tennis1.jpg', label: { es: 'Tenis', en: 'Tennis' } },
     { id: 'yoga', img: 'img/yoga1.jpg', label: { es: 'Yoga', en: 'Yoga' } },
+    { id: 'pilates', img: 'img/pilates1.jpg', label: { es: 'Pilates', en: 'Pilates' } },
     { id: 'swim', img: 'img/swim1.jpg', label: { es: 'Natación', en: 'Swimming' } }
   ];
 
@@ -88,6 +89,18 @@ window.ACTIVE_DATA = (function () {
       title: { es: 'Sunrise yoga en el Retiro', en: 'Sunrise yoga in Retiro park' }, partner: 'Instructora local (partner propuesto)', distance: '60 min',
       when: { es: 'Miércoles y sábados · 07:30', en: 'Wed & Sat · 7:30 am' }, meet: { es: 'Puerta de Alcalá', en: 'Puerta de Alcalá' },
       price: 0, taken: 9, desc: { es: 'Empieza el día con calma antes de tus reuniones. Esterilla incluida (Decathlon).', en: 'Start your day calmly before meetings. Mat included (Decathlon).' } }),
+    A({ id: 'mad-pilates', kind: 'local', city: 'madrid', sport: 'pilates', img: 'img/pilates1.jpg',
+      title: { es: 'Reformer Pilates exprés', en: 'Express Reformer Pilates' }, partner: 'Estudio boutique de pilates (partner propuesto)', distance: '50 min',
+      when: { es: 'Lun–vie · 07:00 y 19:30', en: 'Mon–Fri · 7 am & 7:30 pm' }, meet: { es: 'Estudio a 5 min del hotel', en: 'Studio 5 min from the hotel' },
+      price: 22, freeFrom: 'challenger', spots: 10, taken: 4, desc: { es: 'Clase en máquina reformer en grupo reducido. Ideal antes o después de una jornada de trabajo: core, postura y movilidad tras horas de avión o reuniones.', en: 'Small-group reformer class. Perfect before or after a working day: core, posture and mobility after flights or meetings.' } }),
+    A({ id: 'bcn-pilates', kind: 'local', city: 'barcelona', sport: 'pilates', img: 'img/pilates3.jpg',
+      title: { es: 'Mat Pilates frente al mar', en: 'Seafront mat Pilates' }, partner: 'Instructora local (partner propuesto)', distance: '55 min',
+      when: { es: 'Martes y domingos · 08:30', en: 'Tue & Sun · 8:30 am' }, meet: { es: 'Terraza del Eurostars Grand Marina', en: 'Eurostars Grand Marina terrace' },
+      price: 0, taken: 7, desc: { es: 'Pilates en esterilla con vistas al puerto. Sin material: solo ven con ropa cómoda.', en: 'Mat Pilates overlooking the harbour. No gear needed, just comfy clothes.' } }),
+    A({ id: 'lis-pilates', kind: 'local', city: 'lisboa', sport: 'pilates', img: 'img/pilates2.jpg',
+      title: { es: 'Reformer Pilates en Chiado', en: 'Reformer Pilates in Chiado' }, partner: 'Estudio local de pilates (partner propuesto)', distance: '50 min',
+      when: { es: 'Mié, vie y sáb · 09:00', en: 'Wed, Fri & Sat · 9 am' }, meet: { es: 'Estudio a 8 min a pie del hotel', en: 'Studio an 8-min walk from the hotel' },
+      price: 20, freeFrom: 'challenger', spots: 8, taken: 3, desc: { es: 'Recupera el cuerpo tras surfear o patear Lisboa con una sesión de reformer en grupo reducido.', en: 'Reset your body after surfing or walking Lisbon with a small-group reformer session.' } }),
     A({ id: 'mad-dl-recovery', kind: 'local', city: 'madrid', sport: 'gym', img: 'img/fit2.jpg',
       title: { es: 'Day Pass David Lloyd La Finca', en: 'David Lloyd La Finca Day Pass' }, partner: 'David Lloyd La Finca', partnerId: 'davidlloyd', distance: { es: 'Día completo', en: 'Full day' },
       when: { es: 'Todos los días · 07:00–22:00', en: 'Every day · 7 am–10 pm' }, meet: { es: 'Acceso con tu ACTIVE Pass en recepción del club', en: 'Access with your ACTIVE Pass at the club' },

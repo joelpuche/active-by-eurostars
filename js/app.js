@@ -149,7 +149,7 @@
   function score(a) {
     var s = 0, p = state.prefs || {}, have = {};
     state.stamps.forEach(function (x) { have[x.city] = 1; });
-    (p.goals || []).forEach(function (g) { var go = byId(D.goals, g); if (go && go.kinds.indexOf(a.kind) >= 0) s += 3; if (g === 'discover' && ['surf', 'golf', 'sup', 'trail', 'cycling', 'yoga', 'swim', 'tennis'].indexOf(a.sport) >= 0) s += 2; });
+    (p.goals || []).forEach(function (g) { var go = byId(D.goals, g); if (go && go.kinds.indexOf(a.kind) >= 0) s += 3; if (g === 'discover' && ['surf', 'golf', 'sup', 'trail', 'cycling', 'yoga', 'pilates', 'swim', 'tennis'].indexOf(a.sport) >= 0) s += 2; });
     if ((p.sports || []).indexOf(a.sport) >= 0) s += 2;
     if (!have[a.city]) s += 1;
     if (city(a.city).pilot) s += 0.5;
@@ -184,7 +184,7 @@
     event: '<path d="M6 21V4"/><path d="M6 4h11l-2.5 4L17 12H6"/>',
     trail: '<path d="M3 20l6-10 4 6 3-4 5 8z"/>', cycling: '<circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-7h5l3 7M10 9l2 7"/>',
     swim: '<path d="M3 17c2 0 2-1.5 4.5-1.5S9.5 17 12 17s2-1.5 4.5-1.5S18.5 17 21 17"/><circle cx="16" cy="7" r="2"/><path d="M5 13l5-5 3 3"/>',
-    tennis: '<circle cx="12" cy="12" r="8"/><path d="M5 7c3 2 3 8 0 10M19 7c-3 2-3 8 0 10"/>', yoga: '<circle cx="12" cy="5" r="2"/><path d="M4 20l4-4h8l4 4M12 8v8M6 11l6-2 6 2"/>',
+    tennis: '<circle cx="12" cy="12" r="8"/><path d="M5 7c3 2 3 8 0 10M19 7c-3 2-3 8 0 10"/>', pilates: '<circle cx="7" cy="8" r="2"/><path d="M3 18h18M5 18l4-6 5 2 5-4"/>', yoga: '<circle cx="12" cy="5" r="2"/><path d="M4 20l4-4h8l4 4M12 8v8M6 11l6-2 6 2"/>',
     triathlon: '<circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/>', surf: '<path d="M6 21C6 12 11 5 18 3c0 9-5 16-12 18z"/><path d="M8 17l6-8"/>',
     compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
     ticket: '<path d="M3 8a2 2 0 002-2h14a2 2 0 002 2v2a2 2 0 000 4v2a2 2 0 00-2 2H5a2 2 0 00-2-2v-2a2 2 0 000-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/>',
