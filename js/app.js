@@ -95,7 +95,7 @@
   function partner(id) { return byId(D.partners, id); }
   function meetup(id) { return byId(D.meetups, id); }
   function booking(id) { return byId(state.bookings, id); }
-  function money(n) { return n.toLocaleString(lang === 'en' ? 'en-GB' : 'es-ES') + ' €'; }
+  function money(n) { return n.toLocaleString(lang === 'en' ? 'en-GB' : 'es-ES', { useGrouping: 'always' }) + ' €'; }
   function fmtDate(iso, opts) {
     var d = new Date(iso + 'T12:00:00');
     if (isNaN(d)) return '';
@@ -178,6 +178,7 @@
 
   /* ---------- Iconos (trazo 2px, estilo manual de marca) ---------- */
   var IC = {
+    chart: '<path d="M3 20h18"/><path d="M6 20v-6M11 20V8M16 20v-9M21 20V4"/>',
     run: '<circle cx="15" cy="4.5" r="2"/><path d="M7 21l3.5-5.5 3 2.5V22"/><path d="M5 11.5l3.5-3.5 4.5.5 2.5 3.5 3.5 1"/><path d="M10.5 15.5L13 9"/>',
     padel: '<ellipse cx="10" cy="9" rx="6" ry="6.5"/><path d="M13.8 14l5.7 7"/><circle cx="19" cy="4.5" r="1.6"/><path d="M8 7h.01M12 7h.01M10 10h.01M8 12h.01M12 12h.01"/>',
     gym: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
@@ -309,7 +310,7 @@
     if (BEFORE_LEAVE) { BEFORE_LEAVE(); BEFORE_LEAVE = null; }
     if (!state.user && !PUBLIC[r.name]) { location.replace('#/welcome'); return; }
     if (state.user && (r.name === '' || r.name === 'welcome')) { location.replace('#/explore'); return; }
-    var views = { welcome: vWelcome, prefs: vPrefs, explore: vExplore, activity: vActivity, book: vBook, confirmed: vConfirmed, trips: vTrips, trip: vTrip, passport: vPassport, community: vCommunity, profile: vProfile, stella: vStella, wall: vWall, tour: vTour, ambassador: vAmbassador, collab: vCollab, memories: vMemories, wrapped: vWrapped };
+    var views = { welcome: vWelcome, prefs: vPrefs, explore: vExplore, activity: vActivity, book: vBook, confirmed: vConfirmed, trips: vTrips, trip: vTrip, passport: vPassport, community: vCommunity, profile: vProfile, stella: vStella, wall: vWall, tour: vTour, ambassador: vAmbassador, collab: vCollab, memories: vMemories, wrapped: vWrapped, admin: vAdmin };
     var fn = views[r.name] || vExplore;
     var dark = !!DARK[r.name];
     document.body.classList.toggle('dark', dark);
@@ -1167,19 +1168,13 @@
           '<button class="li li-btn" data-action="logout"><span>' + icon('logout') + t('logout') + '</span>' + icon('chev') + '</button>' +
         '</div>' +
 
-        (u.isAdmin ? '<h3 class="h-sec">' + t('team_panel') + '</h3><div class="admin" id="admin-panel">' +
-          '<div class="card"><b>' + icon('upload') + ' ' + t('kb_title') + '</b><p class="muted small" id="kb-meta">' + t('loading') + '</p>' +
-          '<label class="btn btn-primary btn-sm upload-btn">' + icon('upload') + '<span id="kb-label">' + t('kb_upload') + '</span><input type="file" id="kb-file" accept="application/pdf" hidden></label></div>' +
-          '<div class="card"><b>' + icon('handshake') + ' ' + t('collab_requests') + '</b><div id="adm-collab" class="adm-list muted small">' + t('loading') + '</div></div>' +
-          '<div class="card"><b>' + icon('bulb') + ' ' + t('proposals') + '</b><div id="adm-proposals" class="adm-list muted small">' + t('loading') + '</div></div>' +
-          '<div class="card"><b>' + icon('users') + ' ' + t('recent_questions') + '</b><div id="adm-chats" class="adm-list muted small">' + t('loading') + '</div></div>' +
-        '</div>' : '') +
+        (u.isAdmin ? '<button class="tour-strip adm-strip" data-action="go" data-href="admin">' + icon('chart') + '<div><b>' + t('team_panel') + '</b><span>' + t('adm_strip') + '</span></div>' + icon('chev') + '</button>' : '') +
 
         '<h3 class="h-sec">' + t('about') + '</h3>' +
         '<div class="about">' + lockup() + '<p>' + t('about_text') + '</p><p><b>' + t('team') + ':</b> Joan Mas · Joel Puche · Luca Bertuzzi · Alex Piquer · Pol Tristany</p><p class="muted small">' + t('credits') + '</p><p class="muted small">Grupo Hotusa · Talent Match · 2026</p></div>' +
       '</section>';
   }
-  AFTER.profile = async function () {
+  async function loadAdminCards() {
     if (!state.user.isAdmin) return;
     try {
       var meta = document.getElementById('kb-meta');
@@ -1198,6 +1193,67 @@
       var ce = document.getElementById('adm-chats');
       if (ce) ce.innerHTML = ch.data && ch.data.length ? ch.data.map(function (c) { return '<div class="adm-item"><b>“' + esc(c.question) + '”</b><span>' + new Date(c.created_at).toLocaleString() + '</span></div>'; }).join('') : '—';
     } catch (e) { console.warn(e); }
+  }
+
+  /* ---------- Panel del equipo (admin): métricas + gestión ---------- */
+  function vAdmin() {
+    if (!state.user.isAdmin) return vProfile();
+    var tab = ui.admTab || 'metrics';
+    var segs = '<div class="seg seg-full seg-light adm-seg">' + ['metrics', 'manage'].map(function (k) {
+      return '<button class="' + (tab === k ? 'on' : '') + '" data-action="adm-tab" data-v="' + k + '">' + icon(k === 'metrics' ? 'chart' : 'shield') + t('adm_tab_' + k) + '</button>'; }).join('') + '</div>';
+    var body;
+    if (tab === 'metrics') body = '<div id="adm-metrics" class="adm-metrics"><p class="muted small">' + t('loading') + '</p></div>';
+    else body = '<div class="admin" id="admin-panel">' +
+      '<div class="card"><b>' + icon('upload') + ' ' + t('kb_title') + '</b><p class="muted small" id="kb-meta">' + t('loading') + '</p>' +
+      '<label class="btn btn-primary btn-sm upload-btn">' + icon('upload') + '<span id="kb-label">' + t('kb_upload') + '</span><input type="file" id="kb-file" accept="application/pdf" hidden></label></div>' +
+      '<div class="card"><b>' + icon('handshake') + ' ' + t('collab_requests') + '</b><div id="adm-collab" class="adm-list muted small">' + t('loading') + '</div></div>' +
+      '<div class="card"><b>' + icon('bulb') + ' ' + t('proposals') + '</b><div id="adm-proposals" class="adm-list muted small">' + t('loading') + '</div></div>' +
+      '<div class="card"><b>' + icon('users') + ' ' + t('recent_questions') + '</b><div id="adm-chats" class="adm-list muted small">' + t('loading') + '</div></div>' +
+    '</div>';
+    return subbar(t('team_panel'), 'profile') + '<section class="pad adm-page"><p class="adm-kicker">' + icon('shield') + t('adm_kicker') + '</p>' + segs + body + '</section>';
+  }
+  AFTER.admin = async function () {
+    if (!state.user.isAdmin) return;
+    if ((ui.admTab || 'metrics') !== 'metrics') return loadAdminCards();
+    var box = document.getElementById('adm-metrics'); if (!box) return;
+    var r = await sb.rpc('admin_metrics');
+    if (r.error || !r.data) { box.innerHTML = '<p class="muted small">' + t('adm_err') + '</p>'; return; }
+    var m = r.data, nf = function (n) { return Number(n || 0).toLocaleString(lang === 'en' ? 'en-GB' : 'es-ES', { useGrouping: 'always' }); };
+    var lv = D.levels.map(function (l) { return { name: l.name, n: 0 }; });
+    (m.stamp_counts || []).forEach(function (u) { lv[levelIndex({ count: u.n, cities: u.c })].n++; });
+    var cities = m.by_city || [], maxRev = Math.max.apply(null, cities.map(function (c) { return +c.revenue; }).concat([1]));
+    var acts = (m.top_acts || []).filter(function (x) { return act(x.id); });
+    var tot = Math.max(1, m.users);
+    function kpi(ic, n, label, sub) { return '<div class="adm-kpi">' + icon(ic) + '<b data-n="' + n + '">0</b><span>' + label + '</span>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; }
+    box.innerHTML =
+      '<div class="adm-hero"><small>' + t('adm_revenue') + '</small><b data-n="' + m.revenue + '" data-eur="1">0 €</b>' +
+        '<span>' + t('adm_hero_sub', { b: nf(m.bookings), n: nf(m.nights), e: nf(m.extras) }) + '</span><i class="adm-live">' + t('adm_live') + '</i></div>' +
+      '<div class="adm-kpis">' +
+        kpi('users', m.users, t('adm_users'), '+' + nf(m.users_7d) + ' ' + t('adm_week')) +
+        kpi('ticket', m.bookings, t('adm_bookings'), nf(m.completed) + ' ' + t('adm_completed')) +
+        kpi('bed', m.nights, t('adm_nights'), t('adm_nights_sub')) +
+        kpi('passport', m.stamps, t('adm_stamps'), t('adm_stamps_sub')) +
+        kpi('chat', m.questions, t('adm_questions'), '+' + nf(m.questions_7d) + ' ' + t('adm_week')) +
+        kpi('event', m.attendees, t('adm_attendees'), nf(m.messages) + ' ' + t('adm_msgs')) +
+      '</div>' +
+      '<h3 class="h-sec">' + t('adm_by_city') + '</h3><div class="adm-card adm-bars">' + (cities.length ? cities.map(function (c, k) {
+        var cc = city(c.city); return '<div class="adm-bar"><span>' + esc(cc ? L(cc.name) : c.city) + '</span><div><i style="--w:' + Math.max(6, Math.round(c.revenue / maxRev * 100)) + '%;--d:' + (k * .08) + 's"></i></div><b>' + money(+c.revenue) + '</b><small>' + nf(c.bookings) + ' ' + t(+c.bookings === 1 ? 'adm_bk_short1' : 'adm_bk_short') + '</small></div>'; }).join('') : '<p class="muted small">—</p>') + '</div>' +
+      '<h3 class="h-sec">' + t('adm_levels') + '</h3><div class="adm-card"><div class="adm-stack">' + lv.map(function (l, k) {
+        return l.n ? '<i class="lv' + k + '" style="flex:' + l.n + '"></i>' : ''; }).join('') + '</div><div class="adm-legend">' + lv.map(function (l, k) {
+        return '<span><i class="lv' + k + '"></i>' + l.name + ' <b>' + l.n + '</b></span>'; }).join('') + '</div><p class="muted small">' + t('adm_levels_sub', { p: Math.round((tot - lv[0].n) / tot * 100) }) + '</p></div>' +
+      '<div class="adm-two">' +
+        '<div><h3 class="h-sec">' + t('adm_sports') + '</h3><div class="adm-card adm-sports">' + ((m.by_sport || []).length ? m.by_sport.map(function (x) { return '<span>' + sportIcon(x.sport) + esc(sportLabel(x.sport)) + '<b>' + x.n + '</b></span>'; }).join('') : '<p class="muted small">—</p>') + '</div></div>' +
+        '<div><h3 class="h-sec">' + t('adm_top') + '</h3><div class="adm-card adm-top">' + (acts.length ? acts.map(function (x, k) { var a = act(x.id); return '<div><em>' + (k + 1) + '</em><span>' + esc(L(a.title)) + '<small>' + esc(L(city(a.city).name)) + '</small></span><b>' + x.n + '</b></div>'; }).join('') : '<p class="muted small">—</p>') + '</div></div>' +
+      '</div>' +
+      '<h3 class="h-sec">' + t('adm_listen') + '</h3><div class="adm-listen">' +
+        '<button data-action="adm-tab" data-v="manage">' + icon('chat') + '<b>' + nf(m.questions) + '</b><span>' + t('adm_l_q') + '</span></button>' +
+        '<button data-action="adm-tab" data-v="manage">' + icon('bulb') + '<b>' + nf(m.proposals) + '</b><span>' + t('adm_l_p') + '</span></button>' +
+        '<button data-action="adm-tab" data-v="manage">' + icon('handshake') + '<b>' + nf(m.collabs) + '</b><span>' + t('adm_l_c') + '</span></button>' +
+      '</div><p class="adm-foot">' + icon('shield') + t('adm_foot') + '</p>';
+    [].forEach.call(box.querySelectorAll('[data-n]'), function (el) {
+      var to = +el.getAttribute('data-n'), eur = el.hasAttribute('data-eur'), t0 = performance.now();
+      (function tick(now) { var q = Math.min(1, (now - t0) / 1100), v = Math.round(to * (1 - Math.pow(1 - q, 3))); el.textContent = eur ? money(v) : nf(v); if (q < 1) requestAnimationFrame(tick); })(t0);
+    });
   };
 
   /* ---------- Stella (chat IA) ---------- */
@@ -1556,6 +1612,7 @@
       case 'kind': ui.kind = v; jumpToList(); break;
       case 'ccity': ui.commCity = v; render(); break;
       case 'ctab': ui.commTab = v; render(); break;
+      case 'adm-tab': ui.admTab = v; render(); break;
       case 'partner': ui.commTab = 'partners'; ui.focusPartner = el.getAttribute('data-id'); go('community'); break;
       case 'step':
         var k = el.getAttribute('data-k'), d = +el.getAttribute('data-d');

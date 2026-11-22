@@ -1,2 +1,6 @@
 ADMIN_CREDENTIALS.local.txt
 .claude/
+
+# producción del vídeo
+video-build/
+descargable/
