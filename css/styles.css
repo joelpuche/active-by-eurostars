@@ -280,8 +280,8 @@ body:not(.dark) .seg button.on { background: var(--burgundy); color: var(--white
 .steps li { display: flex; gap: 14px; padding: 16px; border-radius: var(--radius); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
 .steps li.cur { background: var(--claret); border-color: rgba(255,255,255,.25); }
 .steps li > i { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.5); display: grid; place-items: center; font-style: normal; font-weight: 700; flex: none; }
-.steps li.ok > i { background: var(--white); color: var(--burgundy); border-color: var(--white); }
-.steps li.ok > i .ic { width: 16px; height: 16px; }
+.steps li.is-ok > i { background: var(--white); color: var(--burgundy); border-color: var(--white); }
+.steps li.is-ok > i .ic { width: 16px; height: 16px; }
 .steps p { font-size: 13px; opacity: .75; margin: 2px 0 10px; }
 .steps .hint { display: block; font-size: 12px; opacity: .6; margin-top: 6px; }
 .pill { display: inline-flex; padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,.14); font-size: 13px; font-weight: 600; }

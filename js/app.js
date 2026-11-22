@@ -726,7 +726,7 @@
       (done ? '<div class="done-banner">' + icon('check') + '<div><b>' + t('validated') + '</b><span>' + t('stamp_won') + ' · ' + esc(L(c.name)) + '</span></div></div>' +
         (stampOf(b) && stampOf(b).photo ? '<button class="btn btn-light btn-block mt12" data-action="go" data-href="memories">' + icon('image') + t('see_memory') + '</button>' : '<button class="btn btn-light btn-block mt12" data-action="photo" data-id="' + b.id + '">' + icon('camera') + t('photo_add') + '</button>') + suggestNext(b.city) :
         '<ol class="steps">' +
-          '<li class="' + (b.checkedIn ? 'ok' : 'cur') + '"><i>' + (b.checkedIn ? icon('check') : '1') + '</i><div><b>' + t('step1') + '</b><p>' + t('step1_desc') + '</p>' +
+          '<li class="' + (b.checkedIn ? 'is-ok' : 'cur') + '"><i>' + (b.checkedIn ? icon('check') : '1') + '</i><div><b>' + t('step1') + '</b><p>' + t('step1_desc') + '</p>' +
             (b.checkedIn ? '<span class="pill">' + t('checked_in') + '</span>' : '<button class="btn btn-light btn-sm" data-action="checkin" data-id="' + b.id + '">' + t('do_checkin') + '</button>') + '</div></li>' +
           '<li class="' + (b.checkedIn ? 'cur' : '') + '"><i>2</i><div><b>' + t('step2') + '</b><p>' + t('step2_desc') + '</p>' +
             '<button class="btn btn-light btn-sm" data-action="validate" data-id="' + b.id + '"' + (b.checkedIn ? '' : ' disabled') + '>' + icon('qr') + t('validate') + '</button>' +
