@@ -515,7 +515,8 @@ Object.assign(window.ACTIVE_I18N.es, {
   no_photo: 'Sin foto', memories_empty: 'Este mes no hay actividades. ¡A por la siguiente!', wrapped_strip: 'Tu año deportivo en historias', wrapped_cta: 'Tu resumen del año, listo para compartir',
   wr_intro: 'Tu año ACTIVE {y}', wr_intro_sub: '{name}, esto es lo que has vivido viajando con Eurostars. Toca para avanzar.', wr_empty: 'Aún no hay actividades este año. ¡El próximo Wrapped será tuyo!',
   wr_numbers: 'En números', wr_sports: 'deportes', wr_top_sport: 'Tu deporte', wr_times: '{n} veces', wr_top_city: 'Tu ciudad', wr_top_month: 'Tu mes más activo', wr_month_sub: '{n} actividades ese mes',
-  wr_moments: 'Tus momentos', wr_photos: '{n} recuerdos con foto', wr_no_photos: 'Añade fotos a tus actividades para verlas aquí', wr_level: 'Cierras el año como', wr_share: 'Compartir mi Wrapped'
+  wr_moments: 'Tus momentos', wr_photos: '{n} recuerdos con foto', wr_no_photos: 'Añade fotos a tus actividades para verlas aquí', wr_level: 'Cierras el año como', wr_share: 'Compartir mi Wrapped',
+  wr_hello: 'Hola, {name}.<br>Este fue tu año ACTIVE', wr_intro_sub2: 'Lo que has vivido viajando con Eurostars. Mantén pulsado para pausar.', wr_times1: '1 vez', wr_month_sub1: '1 actividad ese mes'
 });
 Object.assign(window.ACTIVE_I18N.en, {
   explore_title: 'What do you fancy on your next trip?', what_fancy: 'Pick a sport', options: 'options', tour_3: '3 circuits',
@@ -529,5 +530,6 @@ Object.assign(window.ACTIVE_I18N.en, {
   no_photo: 'No photo', memories_empty: 'No activities this month. On to the next one!', wrapped_strip: 'Your sporting year in stories', wrapped_cta: 'Your year in review, ready to share',
   wr_intro: 'Your ACTIVE year {y}', wr_intro_sub: '{name}, this is what you lived travelling with Eurostars. Tap to continue.', wr_empty: 'No activities this year yet. Next Wrapped is yours!',
   wr_numbers: 'In numbers', wr_sports: 'sports', wr_top_sport: 'Your sport', wr_times: '{n} times', wr_top_city: 'Your city', wr_top_month: 'Your most active month', wr_month_sub: '{n} activities that month',
-  wr_moments: 'Your moments', wr_photos: '{n} memories with photo', wr_no_photos: 'Add photos to your activities to see them here', wr_level: 'You end the year as', wr_share: 'Share my Wrapped'
+  wr_moments: 'Your moments', wr_photos: '{n} memories with photo', wr_no_photos: 'Add photos to your activities to see them here', wr_level: 'You end the year as', wr_share: 'Share my Wrapped',
+  wr_hello: 'Hi {name}.<br>This was your ACTIVE year', wr_intro_sub2: 'What you lived travelling with Eurostars. Hold to pause.', wr_times1: 'once', wr_month_sub1: '1 activity that month'
 });

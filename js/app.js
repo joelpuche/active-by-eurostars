@@ -1001,31 +1001,62 @@
       topSport: top(function (s) { return s.sport; }), topCity: top(function (s) { return s.city; }), topMonth: top(function (s) { return s.date.slice(0, 7); }),
       photos: ss.filter(function (s) { return s.photo; }) };
   }
+  var WR_DUR = 6;
   function vWrapped() {
-    var w = wrappedData(ui.wrapYear || new Date().getFullYear()), i = ui.wrapIdx;
-    var slides = [];
-    slides.push('<div class="sl sl-intro">' + isotype('wr-iso') + '<small>ACTIVE Wrapped</small><h1 class="display">' + t('wr_intro', { y: w.year }) + '</h1><p>' + t('wr_intro_sub', { name: esc(state.user.name) }) + '</p></div>');
-    if (!w.count) slides.push('<div class="sl"><h2 class="display">' + t('wr_empty') + '</h2></div>');
+    var w = wrappedData(ui.wrapYear || new Date().getFullYear()), i = ui.wrapIdx, slides = [];
+    var nm = esc((state.user.name || '').split(' ')[0]);
+    function d(x) { return ' style="--d:' + x + 's"'; }
+    function bg(img) { return '<div class="wr-bg" style="background-image:url(' + img + ')"></div>'; }
+    function mq(txt) { var r = ''; for (var k = 0; k < 8; k++) r += esc(txt) + ' · '; return '<div class="wr-mq" aria-hidden="true"><span>' + r + r + '</span></div>'; }
+    slides.push({ th: 'a', h: '<div class="sl sl-intro"><div class="wr-blobs"><i></i><i></i><i></i></div><b class="wr-year">' + w.year + '</b>' + isotype('wr-iso') +
+      '<small class="wr-in"' + d(.3) + '>ACTIVE Wrapped ' + w.year + '</small><h1 class="display wr-in"' + d(.45) + '>' + t('wr_hello', { name: nm }) + '</h1><p class="wr-in"' + d(.65) + '>' + t('wr_intro_sub2') + '</p></div>' });
+    if (!w.count) slides.push({ th: 'b', h: '<div class="sl"><h2 class="display wr-in">' + t('wr_empty') + '</h2></div>' });
     else {
-      slides.push('<div class="sl"><small>' + t('wr_numbers') + '</small><div class="wr-big"><b>' + w.count + '</b><span>' + t('activities_done') + '</span></div><div class="wr-row"><div><b>' + w.cities + '</b><span>' + t('cities_done') + '</span></div><div><b>' + w.sports + '</b><span>' + t('wr_sports') + '</span></div><div><b>' + w.count + '</b><span>' + t('stamps') + '</span></div></div></div>');
-      var sp = byId(D.sports, w.topSport.k) || {};
-      slides.push('<div class="sl sl-img" style="background-image:url(' + (sp.img || '') + ')"><small>' + t('wr_top_sport') + '</small><div class="wr-ic">' + sportIcon(w.topSport.k) + '</div><h2 class="display">' + esc(sportLabel(w.topSport.k)) + '</h2><p>' + t('wr_times', { n: w.topSport.n }) + '</p></div>');
-      var tc = city(w.topCity.k);
-      slides.push('<div class="sl sl-img" style="background-image:url(' + tc.img + ')"><small>' + t('wr_top_city') + '</small><h2 class="display wr-city">' + esc(L(tc.name)) + '</h2><p>' + esc(tc.hotel) + ' · ' + t('wr_times', { n: w.topCity.n }) + '</p></div>');
-      slides.push('<div class="sl"><small>' + t('wr_top_month') + '</small><h2 class="display">' + new Date(w.topMonth.k + '-01T12:00:00').toLocaleDateString(lang === 'en' ? 'en-GB' : 'es-ES', { month: 'long' }) + '</h2><p>' + t('wr_month_sub', { n: w.topMonth.n }) + '</p></div>');
-      slides.push('<div class="sl"><small>' + t('wr_moments') + '</small><div class="wr-grid">' + w.stamps.slice(-6).map(function (s) { var a = act(s.activity) || {}; return '<div data-photo="' + esc(s.photo || '') + '" style="background-image:url(' + (a.img || '') + ')"></div>'; }).join('') + '</div><p>' + (w.photos.length ? t('wr_photos', { n: w.photos.length }) : t('wr_no_photos')) + '</p></div>');
-      slides.push('<div class="sl sl-end"><small>' + t('wr_level') + '</small><h2 class="display">' + level().name + '</h2><div class="wr-stamps">' + w.stamps.slice(-4).map(function (s) { return stampSvg(s.city, s.sport, s.date, { cls: 'stamp-white', label: stampLabel(s.activity) }); }).join('') + '</div><p class="eyebrow">Travel further. Play together.</p>' +
-        '<button class="btn btn-light" data-action="wr-share">' + icon('share') + t('wr_share') + '</button></div>');
+      slides.push({ th: 'b', h: '<div class="sl">' + mq(t('wr_numbers')) + '<small class="wr-in">' + t('wr_numbers') + '</small><div class="wr-big wr-in"' + d(.15) + '><b data-count="' + w.count + '">0</b><span>' + t('activities_done') + '</span></div>' +
+        '<div class="wr-row"><div><b data-count="' + w.cities + '">0</b><span>' + t('cities_done') + '</span></div><div><b data-count="' + w.sports + '">0</b><span>' + t('wr_sports') + '</span></div><div><b data-count="' + w.count + '">0</b><span>' + t('stamps') + '</span></div></div></div>' });
+      var sp = byId(D.sports, w.topSport.k) || {}, spl = sportLabel(w.topSport.k);
+      slides.push({ th: 'c', h: '<div class="sl">' + bg(sp.img || '') + mq(spl) + '<small class="wr-in">' + t('wr_top_sport') + '</small><div class="wr-ic">' + sportIcon(w.topSport.k) + '</div><h2 class="display wr-in wr-huge"' + d(.35) + '>' + esc(spl) + '</h2><p class="wr-in"' + d(.55) + '><b class="wr-pill">' + t(w.topSport.n === 1 ? 'wr_times1' : 'wr_times', { n: w.topSport.n }) + '</b></p></div>' });
+      var tc = city(w.topCity.k), cn = L(tc.name);
+      slides.push({ th: 'd', h: '<div class="sl">' + bg(tc.img) + '<small class="wr-in">' + t('wr_top_city') + '</small><h2 class="display wr-city wr-letters">' + cn.split('').map(function (ch, k) { return '<span' + d((.25 + k * .06).toFixed(2)) + '>' + (ch === ' ' ? '&nbsp;' : esc(ch)) + '</span>'; }).join('') + '</h2><p class="wr-in"' + d(.9) + '>' + esc(tc.hotel) + ' · ' + t(w.topCity.n === 1 ? 'wr_times1' : 'wr_times', { n: w.topCity.n }) + '</p></div>' });
+      var months = [], mx = 1; for (var m = 0; m < 12; m++) { var key = w.year + '-' + ('0' + (m + 1)).slice(-2), n = w.stamps.filter(function (x) { return x.date.slice(0, 7) === key; }).length; months.push({ k: key, n: n }); if (n > mx) mx = n; }
+      var loc = lang === 'en' ? 'en-GB' : 'es-ES';
+      slides.push({ th: 'e', h: '<div class="sl"><small class="wr-in">' + t('wr_top_month') + '</small><h2 class="display wr-in wr-huge"' + d(.15) + '>' + new Date(w.topMonth.k + '-01T12:00:00').toLocaleDateString(loc, { month: 'long' }) + '</h2>' +
+        '<div class="wr-chart">' + months.map(function (x, k) { return '<div class="' + (x.k === w.topMonth.k ? 'top' : '') + '"><i style="--h:' + Math.max(4, Math.round(x.n / mx * 100)) + '%;--d:' + (.3 + k * .05).toFixed(2) + 's"></i><small>' + new Date(x.k + '-01T12:00:00').toLocaleDateString(loc, { month: 'narrow' }) + '</small></div>'; }).join('') + '</div>' +
+        '<p class="wr-in"' + d(1) + '>' + t(w.topMonth.n === 1 ? 'wr_month_sub1' : 'wr_month_sub', { n: w.topMonth.n }) + '</p></div>' });
+      slides.push({ th: 'f', h: '<div class="sl"><small class="wr-in">' + t('wr_moments') + '</small><div class="wr-grid">' + w.stamps.slice(-6).map(function (s, k) { var a = act(s.activity) || {}; return '<div data-photo="' + esc(s.photo || '') + '" style="background-image:url(' + (a.img || '') + ');--r:' + [-6, 4, -3, 5, -5, 3][k] + 'deg;--d:' + (.2 + k * .15).toFixed(2) + 's"></div>'; }).join('') + '</div><p class="wr-in"' + d(1.2) + '>' + (w.photos.length ? t('wr_photos', { n: w.photos.length }) : t('wr_no_photos')) + '</p></div>' });
+      var conf = ''; for (var c = 0; c < 36; c++) conf += '<i style="left:' + Math.round(Math.random() * 100) + '%;background:' + ['#fff', '#ff4f7b', '#ffb36b', '#E8EBED'][c % 4] + ';animation-duration:' + (2.6 + Math.random() * 2.4).toFixed(2) + 's;animation-delay:' + (Math.random() * 1.2).toFixed(2) + 's"></i>';
+      slides.push({ th: 'g', h: '<div class="sl sl-end"><div class="wr-conf" aria-hidden="true">' + conf + '</div><small class="wr-in">' + t('wr_level') + '</small><h2 class="display wr-in wr-lvl"' + d(.2) + '>' + level().name + '</h2><div class="wr-stamps">' + w.stamps.slice(-4).map(function (s) { return stampSvg(s.city, s.sport, s.date, { cls: 'stamp-white', label: stampLabel(s.activity) }); }).join('') + '</div><p class="eyebrow wr-in"' + d(1.3) + '>Travel further. Play together.</p>' +
+        '<button class="btn btn-light wr-in"' + d(1.5) + ' data-action="wr-share">' + icon('share') + t('wr_share') + '</button></div>' });
     }
     if (i >= slides.length) i = ui.wrapIdx = slides.length - 1;
-    return '<section class="story">' +
-      '<div class="story-bars">' + slides.map(function (_, k) { return '<i class="' + (k < i ? 'done' : k === i ? 'cur' : '') + '"></i>'; }).join('') + '</div>' +
+    var cur = slides[i];
+    return '<section class="story th-' + cur.th + '">' +
+      '<div class="story-bars">' + slides.map(function (_, k) { return '<i class="' + (k < i ? 'done' : k === i ? 'cur' : '') + '">' + (k === i ? '<em style="animation-duration:' + (k === slides.length - 1 ? 3 : WR_DUR) + 's"></em>' : '') + '</i>'; }).join('') + '</div>' +
       '<button class="story-close icon-btn plain" data-action="go" data-href="passport" aria-label="' + t('close') + '">' + icon('x') + '</button>' +
-      slides[i] +
+      cur.h +
       '<button class="story-nav prev" data-action="wr-nav" data-v="-1" aria-label="prev"></button><button class="story-nav next" data-action="wr-nav" data-v="1" aria-label="next"></button>' +
       '</section>';
   }
-  AFTER.wrapped = AFTER.memories;
+  AFTER.wrapped = function () {
+    AFTER.memories();
+    var st = document.querySelector('.story'); if (!st) return;
+    [].forEach.call(st.querySelectorAll('[data-count]'), function (el) {
+      var to = +el.getAttribute('data-count'), t0 = performance.now() + 250;
+      (function tick(now) { var p = Math.max(0, Math.min(1, (now - t0) / 1200)); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(tick); })(t0);
+    });
+    var bars = st.querySelectorAll('.story-bars i'), bar = st.querySelector('.story-bars i.cur em');
+    if (bar && ui.wrapIdx < bars.length - 1) bar.addEventListener('animationend', function () {
+      if (document.body.contains(bar) && route().name === 'wrapped') { ui.wrapIdx++; render(); }
+    });
+    var held = false, tm;
+    st.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('.btn, .story-close')) return;
+      tm = setTimeout(function () { held = true; st.classList.add('paused'); }, 200);
+    });
+    function up() { clearTimeout(tm); st.classList.remove('paused'); if (held) setTimeout(function () { held = false; }, 50); }
+    st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up); st.addEventListener('pointerleave', up);
+    st.addEventListener('click', function (e) { if (held) { e.stopPropagation(); e.preventDefault(); held = false; } }, true);
+  };
   async function shareWrapped() {
     var w = wrappedData(ui.wrapYear || new Date().getFullYear()), W = 1080, H = 1920;
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var ctx = cv.getContext('2d');

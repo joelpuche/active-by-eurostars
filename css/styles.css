@@ -956,3 +956,79 @@ body.story-mode { background: var(--claret); }
 .splash-bar { position: relative; width: 120px; height: 3px; border-radius: 3px; background: rgba(255,255,255,.2); overflow: hidden; animation: rise .5s ease .8s both; }
 .splash-bar i { position: absolute; inset: 0; width: 40%; border-radius: 3px; background: var(--white); animation: load 1.1s ease-in-out infinite; }
 @keyframes load { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+
+/* ===== v8: Wrapped dinámico (historias con autoavance) ===== */
+.story { transition: background .6s ease; }
+.story.th-a { background: radial-gradient(120% 80% at 20% 0%, #7a1a33, var(--claret)); }
+.story.th-b { background: linear-gradient(160deg, #c21d4b 0%, var(--burgundy) 58%, #24050d 100%); }
+.story.th-c, .story.th-d { background: #24050d; }
+.story.th-e { background: var(--porcelain); color: var(--claret); }
+.story.th-f { background: #1c0409; }
+.story.th-g { background: radial-gradient(90% 60% at 50% 105%, rgba(255,79,123,.55), transparent 70%), linear-gradient(180deg, var(--burgundy), var(--claret)); }
+.story-bars i { position: relative; overflow: hidden; }
+.story-bars i.cur { background: rgba(255,255,255,.3); }
+.story-bars i em { position: absolute; inset: 0; background: var(--white); transform-origin: left; transform: scaleX(0); animation: wrbar 6s linear forwards; }
+@keyframes wrbar { to { transform: scaleX(1); } }
+.story.th-e .story-bars i { background: rgba(61,11,24,.18); }
+.story.th-e .story-bars i.done, .story.th-e .story-bars i em { background: var(--claret); }
+.story.th-e .story-close { color: var(--claret); }
+.story.paused *, .story.paused *::before, .story.paused *::after { animation-play-state: paused !important; }
+.story.paused .story-bars { opacity: .55; }
+.sl > * { position: relative; z-index: 1; }
+.sl > .wr-bg, .sl > .wr-blobs, .sl > .wr-mq, .sl > .wr-year, .sl > .wr-conf { position: absolute; z-index: 0; }
+.wr-in { opacity: 0; animation: wrin .7s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--d, 0s); }
+@keyframes wrin { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+/* intro */
+.wr-blobs { inset: 0; overflow: hidden; pointer-events: none; }
+.wr-blobs i { position: absolute; width: 340px; height: 340px; border-radius: 50%; filter: blur(60px); opacity: .55; animation: wrblob 9s ease-in-out infinite alternate; }
+.wr-blobs i:nth-child(1) { background: #ff4f7b; top: -90px; right: -130px; }
+.wr-blobs i:nth-child(2) { background: #ffb36b; bottom: -130px; left: -110px; animation-delay: -3s; opacity: .4; }
+.wr-blobs i:nth-child(3) { background: #a3123a; top: 38%; left: 25%; animation-delay: -6s; }
+@keyframes wrblob { to { transform: translate(-70px, 90px) scale(1.3); } }
+.wr-year { right: -8px; bottom: 7%; font-family: var(--display); font-size: 170px; line-height: .8; color: transparent; -webkit-text-stroke: 2px rgba(255,255,255,.4); animation: wryear 1.4s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes wryear { from { transform: translateY(80px) scale(1.3); opacity: 0; } }
+.sl-intro .display { font-size: 50px; line-height: 1.02; }
+/* marquee de fondo */
+.wr-mq { left: 0; top: 16%; white-space: nowrap; font-family: var(--display); font-size: 110px; line-height: 1; text-transform: uppercase; opacity: .12; transform: rotate(-8deg); transform-origin: 0 50%; pointer-events: none; }
+.wr-mq span { display: inline-block; animation: mq 16s linear infinite; }
+/* números */
+.wr-big b { display: block; font-size: 170px; background: linear-gradient(180deg, #fff 40%, #ffc2d1); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.wr-row div { opacity: 0; animation: wrpop .6s cubic-bezier(.3,1.5,.5,1) forwards; border: 1px solid rgba(255,255,255,.18); }
+.wr-row div:nth-child(1) { animation-delay: .7s; } .wr-row div:nth-child(2) { animation-delay: .85s; } .wr-row div:nth-child(3) { animation-delay: 1s; }
+@keyframes wrpop { from { opacity: 0; transform: scale(.6) translateY(24px); } to { opacity: 1; transform: none; } }
+/* foto de fondo con Ken Burns */
+.wr-bg { inset: -6%; background: center / cover; animation: wrkb 7s ease-out forwards; }
+.wr-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(61,11,24,.25), rgba(61,11,24,.92) 75%); }
+@keyframes wrkb { from { transform: scale(1.18); } to { transform: scale(1); } }
+.wr-ic { animation: wrspin .8s cubic-bezier(.3,1.5,.5,1) .15s both; }
+@keyframes wrspin { from { transform: rotate(-180deg) scale(0); } }
+.sl .wr-huge { font-size: 76px; line-height: .95; text-transform: uppercase; }
+.wr-pill { display: inline-block; background: var(--white); color: var(--burgundy); font-family: var(--display); letter-spacing: .06em; text-transform: uppercase; padding: 8px 16px; border-radius: 30px; font-size: 18px; }
+/* ciudad letra a letra */
+.wr-letters { display: flex; flex-wrap: wrap; text-transform: uppercase; }
+.wr-letters span { display: inline-block; opacity: 0; animation: wrdrop .6s cubic-bezier(.3,1.5,.5,1) forwards; animation-delay: var(--d); }
+@keyframes wrdrop { from { opacity: 0; transform: translateY(-70px) rotate(-12deg); } to { opacity: 1; transform: none; } }
+/* mes: gráfico */
+.wr-chart { display: flex; align-items: flex-end; gap: 5px; height: 160px; margin: 20px 0 10px; }
+.wr-chart div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; }
+.wr-chart i { width: 100%; height: var(--h); border-radius: 6px 6px 2px 2px; background: rgba(61,11,24,.16); transform-origin: bottom; animation: wrgrow .8s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d); }
+.wr-chart .top i { background: var(--burgundy); box-shadow: 0 8px 20px rgba(89,18,37,.35); }
+.wr-chart small { font-size: 11px; font-weight: 700; opacity: .55; text-transform: uppercase; }
+.wr-chart .top small { opacity: 1; color: var(--burgundy); }
+@keyframes wrgrow { from { transform: scaleY(0); } }
+/* momentos: polaroids */
+.sl .wr-grid { gap: 10px; }
+.sl .wr-grid div { border: 5px solid #fff; border-bottom-width: 18px; border-radius: 4px; box-shadow: 0 12px 26px rgba(0,0,0,.45); opacity: 0; transform: rotate(var(--r)); animation: wrpol .6s cubic-bezier(.3,1.4,.5,1) forwards; animation-delay: var(--d); }
+@keyframes wrpol { from { opacity: 0; transform: scale(1.7) rotate(0deg); } to { opacity: 1; transform: rotate(var(--r)); } }
+/* cierre: confeti + sellos */
+.wr-conf { inset: 0; overflow: hidden; pointer-events: none; }
+.wr-conf i { position: absolute; top: -24px; width: 8px; height: 14px; border-radius: 2px; animation: wrfall linear forwards; }
+@keyframes wrfall { to { transform: translateY(110vh) rotate(760deg); } }
+.sl .wr-lvl { font-size: 72px; background: linear-gradient(180deg, #fff 45%, #ffc2d1); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.wr-stamps .stamp { opacity: 0; animation: wrslam .5s cubic-bezier(.3,1.4,.5,1) forwards; }
+.wr-stamps .stamp:nth-child(1) { animation-delay: .5s; } .wr-stamps .stamp:nth-child(2) { animation-delay: .7s; } .wr-stamps .stamp:nth-child(3) { animation-delay: .9s; } .wr-stamps .stamp:nth-child(4) { animation-delay: 1.1s; }
+@keyframes wrslam { from { opacity: 0; transform: scale(2.4) rotate(-25deg); } to { opacity: 1; transform: rotate(-6deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .wr-in, .wr-row div, .wr-letters span, .sl .wr-grid div, .wr-stamps .stamp { opacity: 1 !important; }
+  .story-bars i em { transform: scaleX(1); }
+}
